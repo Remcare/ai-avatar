@@ -20,33 +20,34 @@ import {
   Tabs,
   Tab,
 } from "@nextui-org/react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { useMemoizedFn, usePrevious } from "ahooks";
 
 import InteractiveAvatarTextInput from "./InteractiveAvatarTextInput";
-import { Toast } from "./Toast";
 
 import { AVATARS, STT_LANGUAGE_LIST } from "@/app/lib/constants";
-import { setErrorMap } from "zod";
 
 export default function InteractiveAvatar() {
   const [isLoadingSession, setIsLoadingSession] = useState(false);
   const [isLoadingRepeat, setIsLoadingRepeat] = useState(false);
   const [stream, setStream] = useState<MediaStream>();
   const [debug, setDebug] = useState<string>();
-  const [knowledgeId, setKnowledgeId] = useState<string>("");
-  const [avatarId, setAvatarId] = useState<string>(
-    "336b72634e644335ad40bd56462fc780" // default is the woman outside
-  );
+  const [avatarId, setAvatarId] = useState<string>("");
   const [language, setLanguage] = useState<string>("en");
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-
   const [data, setData] = useState<StartAvatarResponse>();
   const [text, setText] = useState<string>("");
   const mediaStream = useRef<HTMLVideoElement>(null);
   const avatar = useRef<StreamingAvatar | null>(null);
   const [chatMode, setChatMode] = useState("text_mode");
   const [isUserTalking, setIsUserTalking] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
+  const [audioRecorder, setAudioRecorder] = useState<MediaRecorder | null>(
+    null
+  );
+  const audioChunks = useRef<Blob[]>([]);
+
+  const [overlayText, setOverlayText] = useState<string | null>(null);
+  const overlayTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   async function fetchAccessToken() {
     try {
@@ -60,7 +61,6 @@ export default function InteractiveAvatar() {
       return token;
     } catch (error) {
       console.error("Error fetching access token:", error);
-      setErrorMessage(`Error fetching access token: ${error}`);
     }
 
     return "";
@@ -86,6 +86,7 @@ export default function InteractiveAvatar() {
     avatar.current?.on(StreamingEvents.STREAM_READY, (event) => {
       console.log(">>>>> Stream ready:", event.detail);
       setStream(event.detail);
+      setIsLoadingSession(false);
     });
     avatar.current?.on(StreamingEvents.USER_START, (event) => {
       console.log(">>>>> User started talking:", event);
@@ -99,7 +100,7 @@ export default function InteractiveAvatar() {
       const res = await avatar.current.createStartAvatar({
         quality: AvatarQuality.Low,
         avatarName: avatarId,
-        knowledgeId: "bb77e29751334e21b1ea609fb8223bc3", // Or use a custom `knowledgeBase`.
+        knowledgeId: "bb77e29751334e21b1ea609fb8223bc3", // custom remcare knowledge.
         voice: {
           rate: 1.5, // 0.5 ~ 1.5
           emotion: VoiceEmotion.EXCITED,
@@ -108,34 +109,50 @@ export default function InteractiveAvatar() {
       });
 
       setData(res);
-      // default to voice mode
-      await avatar.current?.startVoiceChat();
       setChatMode("voice_mode");
     } catch (error) {
       console.error("Error starting avatar session:", error);
-      setErrorMessage(`Error starting avatar session: ${error}`);
-    } finally {
       setIsLoadingSession(false);
     }
   }
-  async function handleSpeak() {
+  const handleSpeak = async (inputText: string) => {
+    console.log("Handling speak with text:", inputText);
     setIsLoadingRepeat(true);
     if (!avatar.current) {
-      setErrorMessage("Avatar API not initialized");
+      console.warn("Avatar API not initialized");
+      setDebug("Avatar API not initialized");
       return;
     }
-    await avatar.current.speak({ text: text }).catch((e) => {
-      setErrorMessage(e.message);
-    });
-    setIsLoadingRepeat(false);
-  }
+    try {
+      console.log("Attempting to call avatar.speak with text:", inputText);
+      setOverlayText(inputText);
+      const response = await avatar.current.speak({ text: inputText });
+      console.log("Avatar speak response:", response);
+
+      // Clear previous timeout if it exists
+      if (overlayTimeoutRef.current) {
+        clearTimeout(overlayTimeoutRef.current);
+      }
+
+      // Set a new timeout to clear the overlay text after 5 seconds
+      overlayTimeoutRef.current = setTimeout(() => {
+        setOverlayText(null);
+      }, 3000);
+    } catch (e: any) {
+      console.error("Error in avatar speak:", e);
+      setDebug(`Error in avatar speak: ${e.message}`);
+    } finally {
+      setIsLoadingRepeat(false);
+    }
+  };
   async function handleInterrupt() {
     if (!avatar.current) {
-      setErrorMessage("Avatar API not initialized");
+      setDebug("Avatar API not initialized");
+
       return;
     }
     await avatar.current.interrupt().catch((e) => {
-      setErrorMessage(e.message);
+      setDebug(e.message);
     });
   }
   async function endSession() {
@@ -143,16 +160,83 @@ export default function InteractiveAvatar() {
     setStream(undefined);
   }
 
+  const startRecording = useCallback(async () => {
+    console.log("Starting recording...");
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      console.log("Got audio stream:", stream);
+      const recorder = new MediaRecorder(stream);
+      setAudioRecorder(recorder);
+
+      recorder.ondataavailable = (event) => {
+        console.log("Audio data available:", event.data);
+        audioChunks.current.push(event.data);
+      };
+
+      recorder.onstop = async () => {
+        console.log("Recording stopped. Processing audio...");
+        const audioBlob = new Blob(audioChunks.current, { type: "audio/wav" });
+        console.log("Audio blob created:", audioBlob);
+        await sendAudioForTranscription(audioBlob);
+        audioChunks.current = [];
+      };
+
+      recorder.start();
+      setIsRecording(true);
+      console.log("Recording started successfully");
+    } catch (error) {
+      console.error("Error starting recording:", error);
+      setDebug("Error starting recording");
+    }
+  }, []);
+
+  const stopRecording = useCallback(() => {
+    console.log("Stopping recording...");
+    if (audioRecorder) {
+      audioRecorder.stop();
+      setIsRecording(false);
+      console.log("Recording stopped");
+    } else {
+      console.warn("No active recorder to stop");
+    }
+  }, [audioRecorder]);
+
+  const sendAudioForTranscription = async (audioBlob: Blob) => {
+    console.log("Sending audio for transcription...");
+    const formData = new FormData();
+    formData.append("audio", audioBlob, "speech.wav");
+
+    try {
+      const response = await fetch("/api/transcribe", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error("Transcription failed");
+      }
+
+      const { text } = await response.json();
+      console.log("Transcription result:", text);
+      await handleSpeak(text);
+    } catch (error) {
+      console.error("Error transcribing audio:", error);
+      setDebug("Error transcribing audio");
+    }
+  };
+
   const handleChangeChatMode = useMemoizedFn(async (v) => {
+    console.log("Changing chat mode to:", v);
     if (v === chatMode) {
+      console.log("Chat mode unchanged");
       return;
     }
     if (v === "text_mode") {
-      avatar.current?.closeVoiceChat();
-    } else {
-      await avatar.current?.startVoiceChat();
+      console.log("Switching to text mode, stopping recording if active");
+      stopRecording();
     }
     setChatMode(v);
+    console.log("Chat mode changed successfully");
   });
 
   const previousText = usePrevious(text);
@@ -180,12 +264,27 @@ export default function InteractiveAvatar() {
     }
   }, [mediaStream, stream]);
 
+  useEffect(() => {
+    console.log("Current chat mode:", chatMode);
+    console.log("Is recording:", isRecording);
+    console.log("Current text:", text);
+  }, [chatMode, isRecording, text]);
+
+  // Clean up the timeout on component unmount
+  useEffect(() => {
+    return () => {
+      if (overlayTimeoutRef.current) {
+        clearTimeout(overlayTimeoutRef.current);
+      }
+    };
+  }, []);
+
   return (
-    <div className="w-full flex flex-col gap-4">
+    <div className="relative w-full h-full">
       <Card>
         <CardBody className="h-[500px] flex flex-col justify-center items-center">
           {stream ? (
-            <div className="h-[500px] w-[900px] justify-center items-center flex rounded-lg overflow-hidden">
+            <div className="relative h-[500px] w-[900px] justify-center items-center flex rounded-lg overflow-hidden">
               <video
                 ref={mediaStream}
                 autoPlay
@@ -198,6 +297,13 @@ export default function InteractiveAvatar() {
               >
                 <track kind="captions" />
               </video>
+              <div
+                className={`absolute w-1/2 bottom-4 left-1/2 transform -translate-x-1/2 bg-black bg-opacity-50 text-white p-2 text-center transition-opacity duration-2000 ease-in-out ${
+                  overlayText !== null ? "opacity-100" : "opacity-0"
+                }`}
+              >
+                {overlayText}
+              </div>
               <div className="flex flex-col gap-2 absolute bottom-3 right-3">
                 <Button
                   className="bg-gradient-to-tr from-indigo-500 to-indigo-300 text-white rounded-lg"
@@ -221,7 +327,7 @@ export default function InteractiveAvatar() {
             <div className="h-full justify-center items-center flex flex-col gap-8 w-[500px] self-center">
               <div className="flex flex-col gap-2 w-full">
                 <p className="text-sm font-medium leading-none">
-                  Select Avatar (optional)
+                  Select Custom Avatar (optional)
                 </p>
                 <Select
                   placeholder="Select one from these example avatars"
@@ -287,7 +393,7 @@ export default function InteractiveAvatar() {
                     loading={isLoadingRepeat}
                     placeholder="Type something for the avatar to respond"
                     setInput={setText}
-                    onSubmit={handleSpeak}
+                    onSubmit={() => handleSpeak(text)}
                   />
                   {text && (
                     <Chip className="absolute right-16 top-3">Listening</Chip>
@@ -305,6 +411,18 @@ export default function InteractiveAvatar() {
                   </Button>
                 </div>
               )}
+              {chatMode === "voice_mode" && (
+                <div className="w-full text-center">
+                  <Button
+                    className="bg-gradient-to-tr from-indigo-500 to-indigo-300 text-white"
+                    size="md"
+                    variant="shadow"
+                    onClick={isRecording ? stopRecording : startRecording}
+                  >
+                    {isRecording ? "Stop Talking" : "Start Talking"}
+                  </Button>
+                </div>
+              )}
             </>
           ) : (
             <div className="text-center text-gray-500">
@@ -313,9 +431,11 @@ export default function InteractiveAvatar() {
           )}
         </CardFooter>
       </Card>
-      {errorMessage && (
-        <Toast message={errorMessage} onDismiss={() => setErrorMessage(null)} />
-      )}
+      <p className="font-mono text-right">
+        <span className="font-bold">Console:</span>
+        <br />
+        {debug}
+      </p>
     </div>
   );
 }
