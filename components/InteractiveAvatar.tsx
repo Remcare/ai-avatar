@@ -12,7 +12,6 @@ import {
   CardBody,
   CardFooter,
   Divider,
-  Input,
   Select,
   SelectItem,
   Spinner,
@@ -124,20 +123,39 @@ export default function InteractiveAvatar() {
       return;
     }
     try {
-      console.log("Attempting to call avatar.speak with text:", inputText);
       setOverlayText(inputText);
-      const response = await avatar.current.speak({ text: inputText });
-      console.log("Avatar speak response:", response);
-
       // Clear previous timeout if it exists
       if (overlayTimeoutRef.current) {
         clearTimeout(overlayTimeoutRef.current);
       }
 
-      // Set a new timeout to clear the overlay text after 5 seconds
+      // Set a new timeout to clear the overlay text after 3 seconds
       overlayTimeoutRef.current = setTimeout(() => {
         setOverlayText(null);
       }, 3000);
+
+      // First, get AI response from chat endpoint
+      const chatResponse = await fetch("/api/chat", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ message: inputText }),
+      });
+
+      if (!chatResponse.ok) {
+        throw new Error("Chat request failed");
+      }
+
+      const { response: aiResponse } = await chatResponse.json();
+      console.log("Chat API response:", aiResponse);
+
+      // Then, have avatar speak the AI response
+      const response = await avatar.current.speak({
+        text: aiResponse,
+        task_type: TaskType.REPEAT,
+      });
+      console.log("Avatar speak response:", response);
     } catch (e: any) {
       console.error("Error in avatar speak:", e);
       setDebug(`Error in avatar speak: ${e.message}`);
@@ -218,10 +236,12 @@ export default function InteractiveAvatar() {
 
       const { text } = await response.json();
       console.log("Transcription result:", text);
+
+      // Now just pass the transcribed text to handleSpeak
       await handleSpeak(text);
     } catch (error) {
-      console.error("Error transcribing audio:", error);
-      setDebug("Error transcribing audio");
+      console.error("Error in audio processing:", error);
+      setDebug("Error processing audio");
     }
   };
 
