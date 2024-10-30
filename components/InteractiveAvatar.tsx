@@ -99,7 +99,7 @@ export default function InteractiveAvatar() {
       const res = await avatar.current.createStartAvatar({
         quality: AvatarQuality.Low,
         avatarName: avatarId,
-        knowledgeId: "bb77e29751334e21b1ea609fb8223bc3", // custom remcare knowledge.
+        knowledgeId: "bb77e29751334e21b1ea609fb8223bc3", // custom remcare knowledge
         voice: {
           rate: 1.5, // 0.5 ~ 1.5
           emotion: VoiceEmotion.EXCITED,
