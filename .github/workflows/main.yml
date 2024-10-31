@@ -1,0 +1,65 @@
+name: Update and Run Application on Instance
+
+on:
+  push:
+    branches:
+      - dev  
+  pull_request:
+    branches:
+      - dev  
+
+#jobs:
+  update-and-run:
+    runs-on: ubuntu-latest  
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Set up SSH
+        env:
+          PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }} 
+        run: |
+          mkdir -p ~/.ssh
+          echo "$PRIVATE_KEY" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          echo "StrictHostKeyChecking no" >> ~/.ssh/config
+
+      - name: Debug SSH Variables
+        run: |
+          echo "User: ${{ secrets.VM_USER }}"
+          echo "Host: ${{ secrets.VM_HOST }}"
+
+      - name: Attempt SSH Connection
+        run: |
+          echo "Attempting to SSH into: ${{ secrets.VM_USER }}@${{ secrets.VM_HOST }}"
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa "${{ secrets.VM_USER }}@${{ secrets.VM_HOST }}" "echo Connected Successfully!"
+
+      - name: Pull Latest Changes and Manage Processes
+        run: |
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa "${{ secrets.VM_USER }}@${{ secrets.VM_HOST }}" << 'EOF'
+            # Kill existing processes listening on port 3000
+            PIDs=$(sudo lsof -i :3000 | awk '{print $2}')
+            if [ -n "$PIDs" ]; then
+              echo "Killing processes with PIDs: $PIDs"
+              sudo kill -9 $PIDs
+            else
+              echo "No processes found listening on port 3000"
+            fi
+
+            # Pull the latest code
+            echo "Pulling latest code in /home/ec2-user/ai-avatar-replica"
+            cd /home/ec2-user/ai-avatar-replica  
+            git pull origin main
+            
+            # Install dependencies and build the application
+            cd /home/ec2-user/ai-avatar-replica
+            echo "Starting npm install..."
+            npm install
+            echo "Building the application..."
+            npm run build  
+            
+            # Start the application in a detached screen session
+            echo "Starting the application in a detached screen session..."
+            screen -dmS myapp npm run dev
+          EOF
