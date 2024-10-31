@@ -8,7 +8,7 @@ on:
     branches:
       - dev  
 
-#jobs:
+jobs:
   update-and-run:
     runs-on: ubuntu-latest  
 
@@ -25,7 +25,7 @@ on:
           chmod 600 ~/.ssh/id_rsa
           echo "StrictHostKeyChecking no" >> ~/.ssh/config
 
-      - name: Debug SSH Variables
+      - name: Pulling SSH Variables
         run: |
           echo "User: ${{ secrets.VM_USER }}"
           echo "Host: ${{ secrets.VM_HOST }}"
@@ -48,12 +48,12 @@ on:
             fi
 
             # Pull the latest code
-            echo "Pulling latest code in /home/ec2-user/ai-avatar-replica"
-            cd /home/ec2-user/ai-avatar-replica  
+            echo "Pulling latest code in /home/ec2-user/ai-avatar"
+            cd /home/ec2-user/ai-avatar  
             git pull origin main
             
             # Install dependencies and build the application
-            cd /home/ec2-user/ai-avatar-replica
+            cd /home/ec2-user/ai-avatar
             echo "Starting npm install..."
             npm install
             echo "Building the application..."
