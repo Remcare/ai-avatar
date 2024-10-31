@@ -9,7 +9,7 @@ Feel free to play around with the existing code and please leave any feedback fo
 
 ### Setting up the demo
 
-1. Clone this repo
+1. Clone this repo...
 
 2. Navigate to the repo folder in your terminal
 
