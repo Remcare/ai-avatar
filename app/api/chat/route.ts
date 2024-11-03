@@ -3,8 +3,6 @@ import OpenAI from "openai";
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
-  organization: "org-rRHVNueZABsSwsFjccchyG5k",
-  project: "proj_Nd6S7151hdpKMpelBrDOBM0L",
 });
 const ASSISTANT_ID = process.env.OPENAI_ASSISTANT_ID;
 
