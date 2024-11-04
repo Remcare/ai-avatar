@@ -1,4 +1,4 @@
-name: Update and Run Application on the VM
+name: Update and Run Application on Instance
 
 on:
   push:
@@ -33,13 +33,13 @@ jobs:
       - name: Pull Latest Changes and Manage Processes
         run: |
           ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa "${{ secrets.VM_USER }}@${{ secrets.VM_HOST }}" << 'EOF'
-            # Kill existing processes listening on port 3000
-            PIDs=$(sudo lsof -i :3000 -t)
+            # Kill existing processes listening on ports 3000 to 3009
+            PIDs=$(sudo netstat -tulnp | grep -E ':300[0-9]' | awk '{print $7}' | cut -d'/' -f1)
             if [ -n "$PIDs" ]; then
               echo "Killing processes with PIDs: $PIDs"
               sudo kill -9 $PIDs
             else
-              echo "No processes found listening on port 3000"
+              echo "No processes found listening on ports 3000 to 3009"
             fi
 
             # Check the current branch and pull the latest code
