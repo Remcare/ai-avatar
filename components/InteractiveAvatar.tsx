@@ -258,7 +258,19 @@ export default function InteractiveAvatar() {
     setChatMode(v);
     console.log("Chat mode changed successfully");
   });
-
+  //Handle the Intro Speech
+  const giveIntroductionSpeech = async () => {
+    if (!avatar.current) return;
+    const introductionText = "Hello, I am your virtual assistiant. You can ask me any questions on Caesarean section and Anesthesia. I have been trained to answer questions from information given to me by University Hospital of Coventry & Warwickshire. You could ask me anything about Cesarian Section or what to expect on the day of the operation.";
+    try {
+      await avatar.current.speak({
+        text: introductionText,
+        task_type: TaskType.REPEAT,
+      });
+    } catch (error) {
+      console.error("Error during introduction speech:", error);
+    }
+  };
   const previousText = usePrevious(text);
   useEffect(() => {
     if (!previousText && text) {
