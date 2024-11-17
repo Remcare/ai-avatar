@@ -424,11 +424,11 @@ const generalAdviceInfo = "We're committed to supporting your overall health and
   <div className="mt-4 w-full">
     <div className="mb-2">
       <span className="font-bold">User Speech:</span>
-      <p className="bg-gray-100 p-2 rounded">{currentUserSpeech || "Listening..."}</p>
+      <p className="bg-gray-100 p-2 rounded text-black">{currentUserSpeech || "Listening..."}</p>
     </div>
     <div>
       <span className="font-bold">Avatar Speech:</span>
-      <p className="bg-blue-100 p-2 rounded">{currentAvatarSpeech || "Waiting for response..."}</p>
+      <p className="bg-blue-100 p-2 rounded text-black">{currentAvatarSpeech || "Waiting for response..."}</p>
     </div>
   </div>
         </CardBody>
