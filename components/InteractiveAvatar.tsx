@@ -2,9 +2,7 @@ import type { StartAvatarResponse } from "@heygen/streaming-avatar";
 
 import StreamingAvatar, {
   AvatarQuality,
-  StreamingEvents,
-  TaskType,
-  VoiceEmotion,
+  StreamingEvents, TaskMode, TaskType, VoiceEmotion,
 } from "@heygen/streaming-avatar";
 import {
   Button,
@@ -12,6 +10,7 @@ import {
   CardBody,
   CardFooter,
   Divider,
+  Input,
   Select,
   SelectItem,
   Spinner,
@@ -19,34 +18,37 @@ import {
   Tabs,
   Tab,
 } from "@nextui-org/react";
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, } from "react";
 import { useMemoizedFn, usePrevious } from "ahooks";
-
+import Sidebar from "./Sidebar";
+import Session from "./Session";
 import InteractiveAvatarTextInput from "./InteractiveAvatarTextInput";
-
-import { AVATARS, STT_LANGUAGE_LIST } from "@/app/lib/constants";
+import {AVATARS, STT_LANGUAGE_LIST} from "@/app/lib/constants";
 
 export default function InteractiveAvatar() {
   const [isLoadingSession, setIsLoadingSession] = useState(false);
   const [isLoadingRepeat, setIsLoadingRepeat] = useState(false);
   const [stream, setStream] = useState<MediaStream>();
   const [debug, setDebug] = useState<string>();
+  const [knowledgeId, setKnowledgeId] = useState<string>("");
   const [avatarId, setAvatarId] = useState<string>("");
-  const [language, setLanguage] = useState<string>("en");
+  const [language, setLanguage] = useState<string>('en');
   const [data, setData] = useState<StartAvatarResponse>();
   const [text, setText] = useState<string>("");
   const mediaStream = useRef<HTMLVideoElement>(null);
   const avatar = useRef<StreamingAvatar | null>(null);
   const [chatMode, setChatMode] = useState("text_mode");
   const [isUserTalking, setIsUserTalking] = useState(false);
+  const [overlayText, setOverlayText] = useState<string | null>(null);
   const [isRecording, setIsRecording] = useState(false);
   const [audioRecorder, setAudioRecorder] = useState<MediaRecorder | null>(
     null
   );
   const audioChunks = useRef<Blob[]>([]);
-
-  const [overlayText, setOverlayText] = useState<string | null>(null);
-  const overlayTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [currentUserSpeech, setCurrentUserSpeech] = useState<string>("");
+  const [currentAvatarSpeech, setCurrentAvatarSpeech] = useState<string>("");
+  const [transcribedTexts, setTranscribedTexts] = useState<Array<{text: string, timestamp: string, speaker: 'user' | 'avatar'}>>([]);
+  const [currentAvatarMessage, setCurrentAvatarMessage] = useState<string>("");
 
   async function fetchAccessToken() {
     try {
@@ -64,7 +66,7 @@ export default function InteractiveAvatar() {
 
     return "";
   }
-  
+
   async function startSession() {
     setIsLoadingSession(true);
     const newToken = await fetchAccessToken();
@@ -72,9 +74,36 @@ export default function InteractiveAvatar() {
     avatar.current = new StreamingAvatar({
       token: newToken,
     });
-    avatar.current.on(StreamingEvents.AVATAR_START_TALKING, (e) => {
-      console.log("Avatar started talking", e);
+    avatar.current?.on(StreamingEvents.AVATAR_TALKING_MESSAGE, (event: CustomEvent) => {
+      const chunk = event.detail.message;
+      setCurrentAvatarSpeech(prev => prev + chunk);
     });
+    
+    let avatarspeech = ""; // Declare outside to accumulate the message
+    let userspeech="";
+    // Event listener for AVATAR_TALKING_MESSAGE
+    avatar.current?.on(StreamingEvents.AVATAR_TALKING_MESSAGE, (event: CustomEvent) => {
+      const chunk = event.detail.message;
+      console.log('Avatar talking message:', chunk);
+      setCurrentAvatarSpeech(prev => prev + chunk);
+      avatarspeech += chunk;
+    });
+    avatar.current?.on(StreamingEvents.AVATAR_END_MESSAGE, (event: CustomEvent) => {
+      console.log('Avatar end message:', avatarspeech);
+      const timestamp = new Date().toISOString();
+      setTranscribedTexts(prev => [
+        ...prev,
+        { text: avatarspeech, timestamp, speaker: 'avatar' }
+      ]);
+      
+      // Clear the current avatar speech after a delay
+      setTimeout(() => {
+        setCurrentAvatarSpeech("");
+      }, 5000); // Clear after 5 seconds
+    
+      avatarspeech = "";
+    });
+
     avatar.current.on(StreamingEvents.AVATAR_STOP_TALKING, (e) => {
       console.log("Avatar stopped talking", e);
     });
@@ -85,14 +114,33 @@ export default function InteractiveAvatar() {
     avatar.current?.on(StreamingEvents.STREAM_READY, async (event) => {
       console.log(">>>>> Stream ready:", event.detail);
       setStream(event.detail);
-      setIsLoadingSession(false);
-
-      //Function to give Into Speech
       await giveIntroductionSpeech();
     });
     avatar.current?.on(StreamingEvents.USER_START, (event) => {
       console.log(">>>>> User started talking:", event);
       setIsUserTalking(true);
+    });
+    avatar.current?.on(StreamingEvents.USER_TALKING_MESSAGE, (event: CustomEvent) => {
+      const chunk = event.detail.message;
+      console.log('User talking message:', chunk);
+      setCurrentUserSpeech(prev => prev + chunk);
+      userspeech += chunk;
+    });
+    
+    avatar.current?.on(StreamingEvents.USER_END_MESSAGE, (event: CustomEvent) => {
+      console.log('User end message:', userspeech);
+      const timestamp = new Date().toISOString();
+      setTranscribedTexts(prev => [
+        { text: userspeech, timestamp, speaker: 'user' },
+        ...prev
+      ]);
+      
+      // Clear the current user speech after a delay
+      setTimeout(() => {
+        setCurrentUserSpeech("");
+      }, 5000); // Clear after 5 seconds
+    
+      userspeech = "";
     });
     avatar.current?.on(StreamingEvents.USER_STOP, (event) => {
       console.log(">>>>> User stopped talking:", event);
@@ -102,7 +150,7 @@ export default function InteractiveAvatar() {
       const res = await avatar.current.createStartAvatar({
         quality: AvatarQuality.Low,
         avatarName: avatarId,
-        knowledgeId: "bb77e29751334e21b1ea609fb8223bc3", // custom remcare knowledge
+        knowledgeId: "bb77e29751334e21b1ea609fb8223bc3", // Or use a custom `knowledgeBase`.
         voice: {
           rate: 1.5, // 0.5 ~ 1.5
           emotion: VoiceEmotion.EXCITED,
@@ -111,13 +159,15 @@ export default function InteractiveAvatar() {
       });
 
       setData(res);
+      // default to voice mode
+      await avatar.current?.startVoiceChat();
       setChatMode("voice_mode");
     } catch (error) {
       console.error("Error starting avatar session:", error);
+    } finally {
       setIsLoadingSession(false);
     }
   }
-
   const handleSpeak = async (inputText: string) => {
     console.log("Handling speak with text:", inputText);
     setIsLoadingRepeat(true);
@@ -127,17 +177,6 @@ export default function InteractiveAvatar() {
       return;
     }
     try {
-      setOverlayText(inputText);
-      // Clear previous timeout if it exists
-      if (overlayTimeoutRef.current) {
-        clearTimeout(overlayTimeoutRef.current);
-      }
-
-      // Set a new timeout to clear the overlay text after 3 seconds
-      overlayTimeoutRef.current = setTimeout(() => {
-        setOverlayText(null);
-      }, 3000);
-
       // First, get AI response from chat endpoint
       const chatResponse = await fetch("/api/chat", {
         method: "POST",
@@ -167,137 +206,101 @@ export default function InteractiveAvatar() {
       setIsLoadingRepeat(false);
     }
   };
+
   async function handleInterrupt() {
     if (!avatar.current) {
       setDebug("Avatar API not initialized");
 
       return;
     }
-    await avatar.current.interrupt().catch((e) => {
-      setDebug(e.message);
-    });
+    await avatar.current
+      .interrupt()
+      .catch((e) => {
+        setDebug(e.message);
+      });
   }
   async function endSession() {
+    clearTranscribedTexts();
+    setCurrentUserSpeech("");
+    setCurrentAvatarMessage("");
     await avatar.current?.stopAvatar();
     setStream(undefined);
   }
 
-  const startRecording = useCallback(async () => {
-    console.log("Starting recording...");
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      console.log("Got audio stream:", stream);
-      const recorder = new MediaRecorder(stream);
-      setAudioRecorder(recorder);
-
-      recorder.ondataavailable = (event) => {
-        console.log("Audio data available:", event.data);
-        audioChunks.current.push(event.data);
-      };
-
-      recorder.onstop = async () => {
-        console.log("Recording stopped. Processing audio...");
-        const audioBlob = new Blob(audioChunks.current, { type: "audio/wav" });
-        console.log("Audio blob created:", audioBlob);
-        await sendAudioForTranscription(audioBlob);
-        audioChunks.current = [];
-      };
-
-      recorder.start();
-      setIsRecording(true);
-      console.log("Recording started successfully");
-    } catch (error) {
-      console.error("Error starting recording:", error);
-      setDebug("Error starting recording");
-    }
-  }, []);
-
-  const stopRecording = useCallback(() => {
-    console.log("Stopping recording...");
-    if (audioRecorder) {
-      audioRecorder.stop();
-      setIsRecording(false);
-      console.log("Recording stopped");
-    } else {
-      console.warn("No active recorder to stop");
-    }
-  }, [audioRecorder]);
-
-  const sendAudioForTranscription = async (audioBlob: Blob) => {
-    console.log("Sending audio for transcription...");
-    const formData = new FormData();
-    formData.append("audio", audioBlob, "speech.wav");
-
-    try {
-      const response = await fetch("/api/transcribe", {
-        method: "POST",
-        body: formData,
-      });
-
-      if (!response.ok) {
-        throw new Error("Transcription failed");
-      }
-
-      const { text } = await response.json();
-      console.log("Transcription result:", text);
-
-      // Now just pass the transcribed text to handleSpeak
-      await handleSpeak(text);
-    } catch (error) {
-      console.error("Error in audio processing:", error);
-      setDebug("Error processing audio");
-    }
-  };
-
   const handleChangeChatMode = useMemoizedFn(async (v) => {
-    console.log("Changing chat mode to:", v);
     if (v === chatMode) {
-      console.log("Chat mode unchanged");
       return;
     }
     if (v === "text_mode") {
-      console.log("Switching to text mode, stopping recording if active");
-      stopRecording();
+      avatar.current?.closeVoiceChat();
+    } else {
+      await avatar.current?.startVoiceChat();
     }
     setChatMode(v);
-    console.log("Chat mode changed successfully");
   });
+  const clearSpeechAfterDelay = (setter: React.Dispatch<React.SetStateAction<string>>, delay: number) => {
+    setTimeout(() => {
+      setter("");
+    }, delay);
+  };
+  const generateFileContent = () => {
+    return transcribedTexts.map(item => {
+      const speaker = item.speaker ? item.speaker.toUpperCase() : 'UNKNOWN';
+      return `[${item.timestamp}] ${speaker}: ${item.text}`;
+    }).join('\n');
+  };
 
-  //Handle the Intro Speech
-  const giveIntroductionSpeech = async () => {
+  const handleDownload = () => {
+    const content = generateFileContent();
+    const blob = new Blob([content], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'transcribed_texts.txt';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+  
+  const clearTranscribedTexts = () => {
+    setTranscribedTexts([]);
+  };
+
+    //Handle the Intro Speech
+    const giveIntroductionSpeech = async () => {
+      if (!avatar.current) return;
+      const introductionText = "Hello, I am your virtual assistiant. You can ask me any questions on Caesarean section and Anesthesia. I have been trained to answer questions from information given to me by University Hospital of Coventry & Warwickshire. You could ask me anything about Cesarian Section or what to expect on the day of the operation.";
+      try {
+        await avatar.current.speak({
+          text: introductionText,
+          task_type: TaskType.REPEAT,
+        });
+      } catch (error) {
+        console.error("Error during introduction speech:", error);
+      }
+    };
+
+  const speakText = async (text: string) => {
     if (!avatar.current) return;
-    const introductionText = "Hello, I am your virtual assistiant. You can ask me any questions on Caesarean section and Anesthesia. I have been trained to answer questions from information given to me by University Hospital of Coventry & Warwickshire. You could ask me anything about Cesarian Section or what to expect on the day of the operation.";
     try {
       await avatar.current.speak({
-        text: introductionText,
+        text: text,
         task_type: TaskType.REPEAT,
       });
     } catch (error) {
-      console.error("Error during introduction speech:", error);
+      console.error("Error:", error);
     }
   };
+  
 
-  // Handle speech for each section
-const speakText = async (text: string) => {
-  if (!avatar.current) return;
-  try {
-    await avatar.current.speak({
-      text: text,
-      task_type: TaskType.REPEAT,
-    });
-  } catch (error) {
-    console.error("Error:", error);
-  }
-};
-
-//Text varibales for each section
+  const previousText = usePrevious(text);
+  //Text varibales for each section
 const caesareanSectionInfo = "A Caesarean Section is a surgical procedure to deliver a baby through an incision in the abdomen and uterus, typically performed when a natural birth might pose risks to mother or child. Here, we'll explain why this procedure might be necessary, the benefits and risks involved, and circumstances under which you should contact our Labour Ward before your scheduled procedure. This section aims to provide you with a full understanding of what to expect.";
 const beforeHospitalInfo = "Preparation is key to ensuring a smooth experience on the day of your Caesarean Section. In this section, we'll cover what to expect during your pre-operative assessment, the types of anesthesia available, and how to prepare the night before. Additionally, we'll go over a list of essential items to bring with you. Proper preparation will help ease any stress on the day of the procedure.";
 const dayOfOperationInfo = "On the day of your operation, you'll check in at the hospital and complete some final preparations with our staff, who will guide you through each step leading up to surgery. This section outlines what to bring, guidelines for fasting, and when to arrive. You'll also learn about procedures like antiseptic washing and the importance of bringing only one birth partner to accompany you. These steps are in place to ensure your safety and comfort. Your Caesarean Section will be performed by a skilled team of healthcare professionals, including obstetricians, anesthetists, and midwives. This section provides an overview of who will be present, the process of spinal or general anesthesia, and how the surgery itself will be conducted. Our aim is for you and your birth partner to feel well-informed and supported throughout the procedure.";
 const afterOperationInfo = "Following surgery, you'll be taken to a recovery area where you'll be closely monitored by our medical team. In this section, we'll discuss the post-operative care available, including pain relief options, strategies to prevent blood clots, and tips for maintaining comfort as you recover. We'll also introduce you to our enhanced recovery program to help you regain strength and mobility as soon as possible.";
 const generalAdviceInfo = "We're committed to supporting your overall health and wellness. This section offers advice on topics like breastfeeding, smoking cessation, and nutritional needs during recovery. Our team is here to guide you with information on family planning and self-care routines to support you both in the hospital and after you return home. Let us know if you have any specific health needs while in our care.";
-  
-const previousText = usePrevious(text);
   useEffect(() => {
     if (!previousText && text) {
       avatar.current?.startListening();
@@ -308,6 +311,7 @@ const previousText = usePrevious(text);
 
   useEffect(() => {
     return () => {
+      clearTranscribedTexts();
       endSession();
     };
   }, []);
@@ -322,27 +326,30 @@ const previousText = usePrevious(text);
     }
   }, [mediaStream, stream]);
 
-  useEffect(() => {
-    console.log("Current chat mode:", chatMode);
-    console.log("Is recording:", isRecording);
-    console.log("Current text:", text);
-  }, [chatMode, isRecording, text]);
-
-  // Clean up the timeout on component unmount
-  useEffect(() => {
-    return () => {
-      if (overlayTimeoutRef.current) {
-        clearTimeout(overlayTimeoutRef.current);
-      }
-    };
-  }, []);
-
   return (
-    <div className="relative w-full h-full">
-      <Card>
-        <CardBody className="h-[500px] flex flex-col justify-center items-center">
+    <div className="flex w-full h-full p-4 gap-4">
+      {/* Sidebar Card on the Left */}
+      {stream && (
+        <Card className="w-1/4 flex flex-col justify-center">
+          <CardBody className="flex flex-col gap-4 justify-center items-center">
+            <Sidebar
+              speakText={speakText}
+              caesareanSectionInfo={caesareanSectionInfo}
+              beforeHospitalInfo={beforeHospitalInfo}
+              dayOfOperationInfo={dayOfOperationInfo}
+              afterOperationInfo={afterOperationInfo}
+              generalAdviceInfo={generalAdviceInfo}
+            />
+          </CardBody>
+        </Card>
+      )}
+
+      {/* Main Card */}
+      <Card className="flex-1">
+        <CardBody className="h-[300px] flex flex-col items-center">
+          {/* Main Content Area */}
           {stream ? (
-            <div className="relative h-[500px] w-[900px] justify-center items-center flex rounded-lg overflow-hidden">
+            <div className="relative h-[150px] w-[200px] flex justify-center items-center rounded-full overflow-hidden border-4 border-blue-500 shadow-lg">
               <video
                 ref={mediaStream}
                 autoPlay
@@ -350,7 +357,7 @@ const previousText = usePrevious(text);
                 style={{
                   width: "100%",
                   height: "100%",
-                  objectFit: "contain",
+                  objectFit: "cover"
                 }}
               >
                 <track kind="captions" />
@@ -363,26 +370,12 @@ const previousText = usePrevious(text);
                 {overlayText}
               </div>
               <div className="flex flex-col gap-2 absolute bottom-3 right-3">
-                <Button
-                  className="bg-gradient-to-tr from-indigo-500 to-indigo-300 text-white rounded-lg"
-                  size="md"
-                  variant="shadow"
-                  onClick={handleInterrupt}
-                >
-                  Interrupt task
-                </Button>
-                <Button
-                  className="bg-gradient-to-tr from-indigo-500 to-indigo-300  text-white rounded-lg"
-                  size="md"
-                  variant="shadow"
-                  onClick={endSession}
-                >
-                  End session
-                </Button>
+
               </div>
             </div>
           ) : !isLoadingSession ? (
-            <div className="h-full justify-center items-center flex flex-col gap-8 w-[500px] self-center">
+            <div className="h-full flex flex-col gap-8 justify-center items-center w-[500px] self-center">
+              {/* Avatar and Language Selection */}
               <div className="flex flex-col gap-2 w-full">
                 <p className="text-sm font-medium leading-none">
                   Select Custom Avatar (optional)
@@ -411,15 +404,16 @@ const previousText = usePrevious(text);
                   }}
                 >
                   {STT_LANGUAGE_LIST.map((lang) => (
-                    <SelectItem key={lang.key}>{lang.label}</SelectItem>
+                    <SelectItem key={lang.key} value={lang.key}>
+                      {lang.label}
+                    </SelectItem>
                   ))}
                 </Select>
               </div>
               <Button
-                className="bg-gradient-to-tr from-indigo-500 to-indigo-300 w-full text-white"
+                color="primary"
                 size="md"
-                variant="shadow"
-                onClick={startSession}
+                onPress={startSession}
               >
                 Start session
               </Button>
@@ -427,123 +421,54 @@ const previousText = usePrevious(text);
           ) : (
             <Spinner color="default" size="lg" />
           )}
+  <div className="mt-4 w-full">
+    <div className="mb-2">
+      <span className="font-bold">User Speech:</span>
+      <p className="bg-gray-100 p-2 rounded">{currentUserSpeech || "Listening..."}</p>
+    </div>
+    <div>
+      <span className="font-bold">Avatar Speech:</span>
+      <p className="bg-blue-100 p-2 rounded">{currentAvatarSpeech || "Waiting for response..."}</p>
+    </div>
+  </div>
         </CardBody>
+
         <Divider />
-        <CardFooter className="flex flex-col gap-3 relative">
+
+        <CardFooter className="flex flex-col gap-3">
           {stream ? (
             <>
               <Tabs
                 aria-label="Options"
                 selectedKey={chatMode}
-                onSelectionChange={(v) => {
-                  handleChangeChatMode(v);
-                }}
+                onSelectionChange={(v) => handleChangeChatMode(v)}
               >
                 <Tab key="text_mode" title="Text mode" />
                 <Tab key="voice_mode" title="Voice mode" />
               </Tabs>
-              {chatMode === "text_mode" ? (
-                <div className="w-full flex relative">
-                  <InteractiveAvatarTextInput
-                    disabled={!stream}
-                    input={text}
-                    label="Chat"
-                    loading={isLoadingRepeat}
-                    placeholder="Type something for the avatar to respond"
-                    setInput={setText}
-                    onSubmit={() => handleSpeak(text)}
-                  />
-                  {text && (
-                    <Chip className="absolute right-16 top-3">Listening</Chip>
-                  )}
-                </div>
-              ) : (
-                <div className="w-full text-center">
-                  <Button
-                    isDisabled={!isUserTalking}
-                    className="bg-gradient-to-tr from-indigo-500 to-indigo-300 text-white"
-                    size="md"
-                    variant="shadow"
-                  >
-                    {isUserTalking ? "Listening" : "Voice chat"}
-                  </Button>
-                </div>
-              )}
-              {chatMode === "voice_mode" && (
-                <div className="w-full text-center">
-                  <Button
-                    className="bg-gradient-to-tr from-indigo-500 to-indigo-300 text-white"
-                    size="md"
-                    variant="shadow"
-                    onClick={isRecording ? stopRecording : startRecording}
-                  >
-                    {isRecording ? "Stop Talking" : "Start Talking"}
-                  </Button>
-                </div>
-              )}
-
-{/*Buttons for each section */}
-<div className="w-full flex flex-wrap justify-center gap-2 mt-2">
-  {/* 1. Information about Caesarean Section */}
-  <Button
-        className="bg-gradient-to-tr from-indigo-500 to-indigo-300 text-white"
-        size="md"
-        variant="shadow"
-        onClick={() => speakText(caesareanSectionInfo)}
-      >
-        Information about Caesarean Section
-      </Button>
-
-       {/* 2. Before You Come into Hospital */}
-       <Button
-        className="bg-gradient-to-tr from-indigo-500 to-indigo-300 text-white"
-        size="md"
-        variant="shadow"
-        onClick={() => speakText(beforeHospitalInfo)}
-      >
-        Before You Come into Hospital
-      </Button>
-
-      {/* 3. The Day of the Operation */}
-      <Button
-        className="bg-gradient-to-tr from-indigo-500 to-indigo-300 text-white"
-        size="md"
-        variant="shadow"
-        onClick={() => speakText(dayOfOperationInfo)}
-      >
-        The Day of the Operation
-      </Button>
-
-      {/* 4. After the Operation */}
-      <Button
-        className="bg-gradient-to-tr from-indigo-500 to-indigo-300 text-white"
-        size="md"
-        variant="shadow"
-        onClick={() => speakText(afterOperationInfo)}
-      >
-        After the Operation
-      </Button>
-
-      {/* 5. General Advice */}
-      <Button
-        className="bg-gradient-to-tr from-indigo-500 to-indigo-300 text-white"
-        size="md"
-        variant="shadow"
-        onClick={() => speakText(generalAdviceInfo)}
-      >
-        General Advice
-      </Button>
-</div>
-  
+              {/* Chat Modes Implementation */}
             </>
           ) : (
             <div className="text-center text-gray-500">
               Start a session to interact with the avatar
             </div>
           )}
-
         </CardFooter>
       </Card>
+
+        {/* Sidebar Card on the Left */}
+        {stream && (
+        <Card className="w-1/4 flex flex-col justify-center">
+          <CardBody className="flex flex-col gap-4 justify-center items-center">
+            <Session
+            endSession={endSession}
+            handleInterrupt={handleInterrupt}
+            handleDownload={handleDownload}
+            />
+          </CardBody>
+        </Card>
+      )}
+      
       <p className="font-mono text-right">
         <span className="font-bold">Console:</span>
         <br />
