@@ -302,19 +302,26 @@ const generalAdviceInfo = "We're committed to supporting your overall health and
     {/* Main Content Area */}
     {stream ? (
       <div className="flex flex-row w-full gap-4">
-        <div className="relative h-[150px] w-[200px] flex justify-center items-center rounded-full overflow-hidden border-4 border-blue-500 shadow-lg">
-          <video
-            ref={mediaStream}
-            autoPlay
-            playsInline
-            style={{
-              width: "100%",
-              height: "100%",
-              objectFit: "cover",
-            }}
-          >
-            <track kind="captions" />
-          </video>
+<div className="relative h-[150px] w-[200px] flex justify-center items-center 
+    rounded-lg overflow-hidden border-4 border-blue-500 shadow-lg">
+  <div className="h-[150px] w-[200px] relative overflow-hidden">
+    <video
+      ref={mediaStream}
+      autoPlay
+      playsInline
+      style={{
+        width: "100%",
+        height: "200%",
+        objectFit: "cover",
+        objectPosition: "center top",
+        position: "absolute",
+        top: 0,
+        left: 0,
+      }}
+    >
+      <track kind="captions" />
+    </video>
+  </div>
         </div>
         {/* Buttons Section */}
         <div className="flex flex-row justify-center">
@@ -377,48 +384,46 @@ const generalAdviceInfo = "We're committed to supporting your overall health and
   <Card className="left-1/2 transform -translate-x-1/2 translate-y-4 w-[585px]">
   <CardBody className="flex flex-col gap-2 p-2">
     {/* User Speech Section */}
-    <div>
-      <span className="font-bold text-primary text-sm">User Speech:</span>
-      <div
-        className="bg-gray-100 p-2 rounded text-black h-[100px] overflow-y-auto text-sm"
-        style={{
-          whiteSpace: "pre-line",
-          scrollbarWidth: "thin", // For Firefox
-          scrollbarColor: "#ccc #f1f1f1", // For Firefox
-        }}
-      >
-        {currentUserSpeech
-          ? currentUserSpeech.split("\n").map((msg, index) => (
-              <div key={index}>
-                <span className="text-xs text-gray-500">User. </span>
-                <span>{msg}</span>
-              </div>
-            ))
-          : "Waiting for user input..."}
-      </div>
-    </div>
+<div>
+  <span className="font-bold text-primary text-sm">User Speech:</span>
+  <div className="bg-gray-100 p-2 rounded text-black h-[100px] overflow-y-auto text-sm flex flex-col-reverse"
+       style={{
+         scrollbarWidth: "thin",
+         scrollbarColor: "#ccc #f1f1f1",
+       }}>
+    {currentUserSpeech ? (
+      currentUserSpeech.split("\n").map((msg, index, array) => (
+        <div key={array.length - 1 - index}>
+          <span className="text-xs text-gray-500">User. </span>
+          <span>{msg}</span>
+        </div>
+      ))
+    ) : (
+      <div>Waiting for user input...</div>
+    )}
+  </div>
+</div>
 
-    {/* Avatar Speech Section */}
-    <div>
-      <span className="font-bold text-blue-600 text-sm">Avatar Speech:</span>
-      <div
-        className="bg-blue-100 p-2 rounded text-black min-h-[50px] max-h-[200px] overflow-y-auto text-sm"
-        style={{
-          whiteSpace: "pre-line",
-          scrollbarWidth: "thin", // For Firefox
-          scrollbarColor: "#ccc #f1f1f1", // For Firefox
-        }}
-      >
-        {currentAvatarSpeech
-          ? currentAvatarSpeech.split("\n").map((msg, index) => (
-              <div key={index}>
-                <span className="text-xs text-gray-500">Avatar. </span>
-                <span>{msg}</span>
-              </div>
-            ))
-          : "Waiting for avatar response..."}
-      </div>
-    </div>
+{/* Avatar Speech Section */}
+<div>
+  <span className="font-bold text-blue-600 text-sm">Avatar Speech:</span>
+  <div className="bg-blue-100 p-2 rounded text-black min-h-[50px] max-h-[200px] overflow-y-auto text-sm flex flex-col-reverse"
+       style={{
+         scrollbarWidth: "thin",
+         scrollbarColor: "#ccc #f1f1f1",
+       }}>
+    {currentAvatarSpeech ? (
+      currentAvatarSpeech.split("\n").map((msg, index, array) => (
+        <div key={array.length - 1 - index}>
+          <span className="text-xs text-gray-500">Avatar. </span>
+          <span>{msg}</span>
+        </div>
+      ))
+    ) : (
+      <div>Waiting for avatar response...</div>
+    )}
+  </div>
+</div>
   </CardBody>
 </Card>
 
