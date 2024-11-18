@@ -5,12 +5,21 @@ const Session = ({ endSession,handleInterrupt,handleDownload}) => {
 
   return (
     <div className="flex flex-col gap-2 pr-4 items-start justify-start">
+      
+                      {/* Download Transcription Button */}
+                      <Button
+        color="success"
+        auto
+        onPress={handleDownload}
+      >
+        Download Transcription
+      </Button>
                 <Button
                   color="success"
                   size="md"
                   onPress={handleInterrupt}
                 >
-                  Interrupt task
+                  Interrupt Avatar
                 </Button>
                 <Button
                   color="success"
@@ -19,15 +28,6 @@ const Session = ({ endSession,handleInterrupt,handleDownload}) => {
                 >
                   End session
                 </Button>
-
-                      {/* Download Transcription Button */}
-      <Button
-        color="success"
-        auto
-        onPress={handleDownload}
-      >
-        See Transcription
-      </Button>
     </div>
   );
 };

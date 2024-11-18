@@ -1,5 +1,4 @@
 import type { StartAvatarResponse } from "@heygen/streaming-avatar";
-
 import StreamingAvatar, {
   AvatarQuality,
   StreamingEvents, TaskMode, TaskType, VoiceEmotion,
@@ -24,14 +23,14 @@ import Sidebar from "./Sidebar";
 import Session from "./Session";
 import InteractiveAvatarTextInput from "./InteractiveAvatarTextInput";
 import {AVATARS, STT_LANGUAGE_LIST} from "@/app/lib/constants";
+import { addTranscribedText, clearTranscribedTexts, handleDownload } from './transcriptManager';
 
 export default function InteractiveAvatar() {
   const [isLoadingSession, setIsLoadingSession] = useState(false);
   const [isLoadingRepeat, setIsLoadingRepeat] = useState(false);
   const [stream, setStream] = useState<MediaStream>();
   const [debug, setDebug] = useState<string>();
-  const [knowledgeId, setKnowledgeId] = useState<string>("");
-  const [avatarId, setAvatarId] = useState<string>("");
+  const [avatarId, setAvatarId] = useState<string>("336b72634e644335ad40bd56462fc780");
   const [language, setLanguage] = useState<string>('en');
   const [data, setData] = useState<StartAvatarResponse>();
   const [text, setText] = useState<string>("");
@@ -39,17 +38,12 @@ export default function InteractiveAvatar() {
   const avatar = useRef<StreamingAvatar | null>(null);
   const [chatMode, setChatMode] = useState("text_mode");
   const [isUserTalking, setIsUserTalking] = useState(false);
-  const [overlayText, setOverlayText] = useState<string | null>(null);
-  const [isRecording, setIsRecording] = useState(false);
-  const [audioRecorder, setAudioRecorder] = useState<MediaRecorder | null>(
-    null
-  );
-  const audioChunks = useRef<Blob[]>([]);
   const [currentUserSpeech, setCurrentUserSpeech] = useState<string>("");
   const [currentAvatarSpeech, setCurrentAvatarSpeech] = useState<string>("");
-  const [transcribedTexts, setTranscribedTexts] = useState<Array<{text: string, timestamp: string, speaker: 'user' | 'avatar'}>>([]);
+  const [transcribedTexts, addTranscribedTexts] = useState<Array<{text: string, timestamp: string, speaker: 'user' | 'avatar'}>>([]);
   const [currentAvatarMessage, setCurrentAvatarMessage] = useState<string>("");
-
+  const [isListening, setIsListening] = useState(false);
+  
   async function fetchAccessToken() {
     try {
       const response = await fetch("/api/get-access-token", {
@@ -84,23 +78,12 @@ export default function InteractiveAvatar() {
     // Event listener for AVATAR_TALKING_MESSAGE
     avatar.current?.on(StreamingEvents.AVATAR_TALKING_MESSAGE, (event: CustomEvent) => {
       const chunk = event.detail.message;
-      console.log('Avatar talking message:', chunk);
-      setCurrentAvatarSpeech(prev => prev + chunk);
       avatarspeech += chunk;
     });
     avatar.current?.on(StreamingEvents.AVATAR_END_MESSAGE, (event: CustomEvent) => {
       console.log('Avatar end message:', avatarspeech);
-      const timestamp = new Date().toISOString();
-      setTranscribedTexts(prev => [
-        ...prev,
-        { text: avatarspeech, timestamp, speaker: 'avatar' }
-      ]);
-      
-      // Clear the current avatar speech after a delay
-      setTimeout(() => {
-        setCurrentAvatarSpeech("");
-      }, 5000); // Clear after 5 seconds
-    
+      addTranscribedText(avatarspeech, 'avatar');
+      setCurrentAvatarSpeech(prev => prev + avatarspeech + "\n");
       avatarspeech = "";
     });
 
@@ -119,6 +102,7 @@ export default function InteractiveAvatar() {
     avatar.current?.on(StreamingEvents.USER_START, (event) => {
       console.log(">>>>> User started talking:", event);
       setIsUserTalking(true);
+      setIsListening(true);
     });
     avatar.current?.on(StreamingEvents.USER_TALKING_MESSAGE, (event: CustomEvent) => {
       const chunk = event.detail.message;
@@ -129,22 +113,14 @@ export default function InteractiveAvatar() {
     
     avatar.current?.on(StreamingEvents.USER_END_MESSAGE, (event: CustomEvent) => {
       console.log('User end message:', userspeech);
-      const timestamp = new Date().toISOString();
-      setTranscribedTexts(prev => [
-        { text: userspeech, timestamp, speaker: 'user' },
-        ...prev
-      ]);
-      
-      // Clear the current user speech after a delay
-      setTimeout(() => {
-        setCurrentUserSpeech("");
-      }, 5000); // Clear after 5 seconds
-    
+      addTranscribedText(userspeech, 'user');
+      setCurrentUserSpeech(prev => prev + userspeech + "\n");
       userspeech = "";
     });
     avatar.current?.on(StreamingEvents.USER_STOP, (event) => {
       console.log(">>>>> User stopped talking:", event);
       setIsUserTalking(false);
+      setIsListening(false);
     });
     try {
       const res = await avatar.current.createStartAvatar({
@@ -219,13 +195,14 @@ export default function InteractiveAvatar() {
         setDebug(e.message);
       });
   }
+
   async function endSession() {
-    clearTranscribedTexts();
-    setCurrentUserSpeech("");
-    setCurrentAvatarMessage("");
-    await avatar.current?.stopAvatar();
-    setStream(undefined);
-  }
+    clearTranscribedTexts(); // Clear all transcribed texts
+    setCurrentUserSpeech(""); // Clear user speech
+    setCurrentAvatarSpeech(""); // Clear avatar speech
+    await avatar.current?.stopAvatar(); // Stop the avatar
+    setStream(undefined); // Reset the media stream
+}
 
   const handleChangeChatMode = useMemoizedFn(async (v) => {
     if (v === chatMode) {
@@ -238,39 +215,10 @@ export default function InteractiveAvatar() {
     }
     setChatMode(v);
   });
-  const clearSpeechAfterDelay = (setter: React.Dispatch<React.SetStateAction<string>>, delay: number) => {
-    setTimeout(() => {
-      setter("");
-    }, delay);
-  };
-  const generateFileContent = () => {
-    return transcribedTexts.map(item => {
-      const speaker = item.speaker ? item.speaker.toUpperCase() : 'UNKNOWN';
-      return `[${item.timestamp}] ${speaker}: ${item.text}`;
-    }).join('\n');
-  };
-
-  const handleDownload = () => {
-    const content = generateFileContent();
-    const blob = new Blob([content], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'transcribed_texts.txt';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  };
-  
-  const clearTranscribedTexts = () => {
-    setTranscribedTexts([]);
-  };
-
     //Handle the Intro Speech
     const giveIntroductionSpeech = async () => {
       if (!avatar.current) return;
-      const introductionText = "Hello, I am your virtual assistiant. You can ask me any questions on Caesarean section and Anesthesia. I have been trained to answer questions from information given to me by University Hospital of Coventry & Warwickshire. You could ask me anything about Cesarian Section or what to expect on the day of the operation.";
+      const introductionText = "Hello, I am your virtual assistant. You can ask me any questions on Caesarean section and Anesthesia. I have been trained to answer questions from information given to me by University Hospital of Coventry & Warwickshire. You could ask me anything about Cesarian Section or what to expect on the day of the operation.";
       try {
         await avatar.current.speak({
           text: introductionText,
@@ -312,6 +260,8 @@ const generalAdviceInfo = "We're committed to supporting your overall health and
   useEffect(() => {
     return () => {
       clearTranscribedTexts();
+      setCurrentAvatarSpeech("");
+      setCurrentAvatarSpeech("");
       endSession();
     };
   }, []);
@@ -327,153 +277,162 @@ const generalAdviceInfo = "We're committed to supporting your overall health and
   }, [mediaStream, stream]);
 
   return (
-    <div className="flex w-full h-full p-4 gap-4">
-      {/* Sidebar Card on the Left */}
-      {stream && (
-        <Card className="w-1/4 flex flex-col justify-center">
-          <CardBody className="flex flex-col gap-4 justify-center items-center">
-            <Sidebar
-              speakText={speakText}
-              caesareanSectionInfo={caesareanSectionInfo}
-              beforeHospitalInfo={beforeHospitalInfo}
-              dayOfOperationInfo={dayOfOperationInfo}
-              afterOperationInfo={afterOperationInfo}
-              generalAdviceInfo={generalAdviceInfo}
-            />
-          </CardBody>
-        </Card>
-      )}
-
-      {/* Main Card */}
-      <Card className="flex-1">
-        <CardBody className="h-[300px] flex flex-col items-center">
-          {/* Main Content Area */}
-          {stream ? (
-            <div className="relative h-[150px] w-[200px] flex justify-center items-center rounded-full overflow-hidden border-4 border-blue-500 shadow-lg">
-              <video
-                ref={mediaStream}
-                autoPlay
-                playsInline
-                style={{
-                  width: "100%",
-                  height: "100%",
-                  objectFit: "cover"
-                }}
-              >
-                <track kind="captions" />
-              </video>
-              <div
-                className={`absolute w-1/2 bottom-4 left-1/2 transform -translate-x-1/2 bg-black bg-opacity-50 text-white p-2 text-center transition-opacity duration-2000 ease-in-out ${
-                  overlayText !== null ? "opacity-100" : "opacity-0"
-                }`}
-              >
-                {overlayText}
-              </div>
-              <div className="flex flex-col gap-2 absolute bottom-3 right-3">
-
-              </div>
-            </div>
-          ) : !isLoadingSession ? (
-            <div className="h-full flex flex-col gap-8 justify-center items-center w-[500px] self-center">
-              {/* Avatar and Language Selection */}
-              <div className="flex flex-col gap-2 w-full">
-                <p className="text-sm font-medium leading-none">
-                  Select Custom Avatar (optional)
-                </p>
-                <Select
-                  placeholder="Select one from these example avatars"
-                  size="md"
-                  selectedKeys={[avatarId]}
-                  onChange={(e) => {
-                    setAvatarId(e.target.value);
-                  }}
-                >
-                  {AVATARS.map((avatar) => (
-                    <SelectItem key={avatar.avatar_id} value={avatar.avatar_id}>
-                      {avatar.name}
-                    </SelectItem>
-                  ))}
-                </Select>
-                <Select
-                  label="Select language"
-                  placeholder="Select language"
-                  className="max-w-xs"
-                  selectedKeys={[language]}
-                  onChange={(e) => {
-                    setLanguage(e.target.value);
-                  }}
-                >
-                  {STT_LANGUAGE_LIST.map((lang) => (
-                    <SelectItem key={lang.key} value={lang.key}>
-                      {lang.label}
-                    </SelectItem>
-                  ))}
-                </Select>
-              </div>
-              <Button
-                color="primary"
-                size="md"
-                onPress={startSession}
-              >
-                Start session
-              </Button>
-            </div>
-          ) : (
-            <Spinner color="default" size="lg" />
-          )}
-  <div className="mt-4 w-full">
-    <div className="mb-2">
-      <span className="font-bold">User Speech:</span>
-      <p className="bg-gray-100 p-2 rounded text-black">{currentUserSpeech || "Listening..."}</p>
-    </div>
-    <div>
-      <span className="font-bold">Avatar Speech:</span>
-      <p className="bg-blue-100 p-2 rounded text-black">{currentAvatarSpeech || "Waiting for response..."}</p>
-    </div>
-  </div>
-        </CardBody>
-
-        <Divider />
-
-        <CardFooter className="flex flex-col gap-3">
-          {stream ? (
-            <>
-              <Tabs
-                aria-label="Options"
-                selectedKey={chatMode}
-                onSelectionChange={(v) => handleChangeChatMode(v)}
-              >
-                <Tab key="text_mode" title="Text mode" />
-                <Tab key="voice_mode" title="Voice mode" />
-              </Tabs>
-              {/* Chat Modes Implementation */}
-            </>
-          ) : (
-            <div className="text-center text-gray-500">
-              Start a session to interact with the avatar
-            </div>
-          )}
-        </CardFooter>
-      </Card>
-
+    <div className="relative w-full h-full p-4">
+      {/* Top Section: Left Sidebar, Main Card, and Right Sidebar */}
+      <div className="flex w-full gap-4 justify-center items-start">
         {/* Sidebar Card on the Left */}
         {stream && (
-        <Card className="w-1/4 flex flex-col justify-center">
-          <CardBody className="flex flex-col gap-4 justify-center items-center">
-            <Session
+          <Card className="h-[300px] w-1/4 flex flex-col justify-center">
+            <CardBody className="flex flex-col gap-4 justify-center items-center">
+              <Sidebar
+                speakText={speakText}
+                caesareanSectionInfo={caesareanSectionInfo}
+                beforeHospitalInfo={beforeHospitalInfo}
+                dayOfOperationInfo={dayOfOperationInfo}
+                afterOperationInfo={afterOperationInfo}
+                generalAdviceInfo={generalAdviceInfo}
+              />
+            </CardBody>
+          </Card>
+        )}
+  
+        {/* Main Card */}
+        <Card className="flex-2">
+  <CardBody className="h-[300px] w-[350px] flex flex-row items-center justify-between">
+    {/* Main Content Area */}
+    {stream ? (
+      <div className="flex flex-row w-full gap-4">
+        <div className="relative h-[150px] w-[200px] flex justify-center items-center rounded-full overflow-hidden border-4 border-blue-500 shadow-lg">
+          <video
+            ref={mediaStream}
+            autoPlay
+            playsInline
+            style={{
+              width: "100%",
+              height: "100%",
+              objectFit: "cover",
+            }}
+          >
+            <track kind="captions" />
+          </video>
+        </div>
+        {/* Buttons Section */}
+        <div className="flex flex-row justify-center">
+          <Session
             endSession={endSession}
             handleInterrupt={handleInterrupt}
             handleDownload={handleDownload}
-            />
-          </CardBody>
-        </Card>
-      )}
-      
-      <p className="font-mono text-right">
-        <span className="font-bold">Console:</span>
-        <br />
-        {debug}
-      </p>
+          />
+        </div>
+      </div>
+    ) : !isLoadingSession ? (
+      <div className="h-full flex flex-col gap-8 justify-center items-center w-[500px] self-center">
+        <div className="flex flex-col gap-2 w-full">
+          <p className="text-sm font-medium leading-none">
+            Select Custom Avatar
+          </p>
+          <Select
+            placeholder="Select one from these example avatars"
+            size="md"
+            selectedKeys={[avatarId]} // Controlled selection
+            onChange={(e) => setAvatarId(e.target.value)} // Update state on selection change
+          >
+            {AVATARS.map((avatar) => (
+              <SelectItem key={avatar.avatar_id} value={avatar.avatar_id}>
+                {avatar.name}
+              </SelectItem>
+            ))}
+          </Select>
+          <Select
+            label="Select language"
+            placeholder="Select language"
+            className="max-w-xs"
+            selectedKeys={[language]}
+            onChange={(e) => {
+              setLanguage(e.target.value);
+            }}
+          >
+            {STT_LANGUAGE_LIST.map((lang) => (
+              <SelectItem key={lang.key} value={lang.key}>
+                {lang.label}
+              </SelectItem>
+            ))}
+          </Select>
+        </div>
+        <Button color="primary" size="md" onPress={startSession}>
+          Start session
+        </Button>
+      </div>
+    ) : (
+      <div className="flex items-center justify-center w-full h-full">
+        <Spinner color="default" size="lg" />
+      </div>
+    )}
+  </CardBody>
+</Card>
+
+      </div>
+
+      {stream && (
+  <Card className="left-1/2 transform -translate-x-1/2 translate-y-4 w-[585px]">
+  <CardBody className="flex flex-col gap-2 p-2">
+    {/* User Speech Section */}
+    <div>
+      <span className="font-bold text-primary text-sm">User Speech:</span>
+      <div
+        className="bg-gray-100 p-2 rounded text-black h-[100px] overflow-y-auto text-sm"
+        style={{
+          whiteSpace: "pre-line",
+          scrollbarWidth: "thin", // For Firefox
+          scrollbarColor: "#ccc #f1f1f1", // For Firefox
+        }}
+      >
+        {currentUserSpeech
+          ? currentUserSpeech.split("\n").map((msg, index) => (
+              <div key={index}>
+                <span className="text-xs text-gray-500">User. </span>
+                <span>{msg}</span>
+              </div>
+            ))
+          : "Waiting for user input..."}
+      </div>
     </div>
-  );
+
+    {/* Avatar Speech Section */}
+    <div>
+      <span className="font-bold text-blue-600 text-sm">Avatar Speech:</span>
+      <div
+        className="bg-blue-100 p-2 rounded text-black min-h-[50px] max-h-[200px] overflow-y-auto text-sm"
+        style={{
+          whiteSpace: "pre-line",
+          scrollbarWidth: "thin", // For Firefox
+          scrollbarColor: "#ccc #f1f1f1", // For Firefox
+        }}
+      >
+        {currentAvatarSpeech
+          ? currentAvatarSpeech.split("\n").map((msg, index) => (
+              <div key={index}>
+                <span className="text-xs text-gray-500">Avatar. </span>
+                <span>{msg}</span>
+              </div>
+            ))
+          : "Waiting for avatar response..."}
+      </div>
+    </div>
+  </CardBody>
+</Card>
+
+)}
+{stream && (
+                  <Chip 
+        color={isListening ? "success" : "default"} 
+        variant="solid" 
+        className="absolute bottom-2 right-2"
+      >
+        {isListening ? "Listening" : "Not Listening"}
+      </Chip>
+      )}
+    </div>
+  );  
+  
 }
