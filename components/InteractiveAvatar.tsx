@@ -22,7 +22,7 @@ import { useMemoizedFn, usePrevious } from "ahooks";
 import Sidebar from "./Sidebar";
 import Session from "./Session";
 import InteractiveAvatarTextInput from "./InteractiveAvatarTextInput";
-import {AVATARS, STT_LANGUAGE_LIST} from "@/app/lib/constants";
+import {AVATARS, VOICES,STT_LANGUAGE_LIST,STT_KNOWLEDGE_LIST} from "@/app/lib/constants";
 import { addTranscribedText, clearTranscribedTexts, handleDownload } from './transcriptManager';
 
 export default function InteractiveAvatar() {
@@ -30,10 +30,12 @@ export default function InteractiveAvatar() {
   const [isLoadingRepeat, setIsLoadingRepeat] = useState(false);
   const [stream, setStream] = useState<MediaStream>();
   const [debug, setDebug] = useState<string>();
-  const [avatarId, setAvatarId] = useState<string>("336b72634e644335ad40bd56462fc780");
+  const [avatarId, setAvatarId] = useState<string>("");
   const [language, setLanguage] = useState<string>('en');
   const [data, setData] = useState<StartAvatarResponse>();
   const [text, setText] = useState<string>("");
+  const [knowledgeId, setKnowledgeId] = useState<string>("");
+  const [voiceId, setVoiceId] = useState<string>("");
   const mediaStream = useRef<HTMLVideoElement>(null);
   const avatar = useRef<StreamingAvatar | null>(null);
   const [chatMode, setChatMode] = useState("text_mode");
@@ -126,10 +128,21 @@ export default function InteractiveAvatar() {
       const res = await avatar.current.createStartAvatar({
         quality: AvatarQuality.Low,
         avatarName: avatarId,
-        knowledgeId: "bb77e29751334e21b1ea609fb8223bc3", // Or use a custom `knowledgeBase`.
-        voice: {
+        knowledgeId: knowledgeId, 
+        /*voice: {
           rate: 1.5, // 0.5 ~ 1.5
           emotion: VoiceEmotion.EXCITED,
+        },*/
+        voice: {
+          voiceId:voiceId,
+          //80f371302eaa4404870daa41dc62423c',//french female
+          //french male: 90fc4e27e9e349f196767c0ada520abd
+          //ssvoiceId:'0009aabefe3a4553bc581d837b6268cb',
+          //voiceId: '2d5b0e6cf36f460aa7fc47e3eee4ba54',//Sofia
+          //voiceId:'0009aabefe3a4553bc581d837b6268cb', // Walter
+          //uk female:2d5b0e6cf36f460aa7fc47e3eee4ba54, 628161fd1c79432d853b610e84dbc7a4
+          //uk male: f5a3cb4edbfc4d37b5614ce118be7bc8
+          rate: 1.0, // Adjust the speaking rate as needed (0.5 to 1.5)// Choose an appropriate emotion
         },
         language: language,
       });
@@ -144,6 +157,7 @@ export default function InteractiveAvatar() {
       setIsLoadingSession(false);
     }
   }
+
   const handleSpeak = async (inputText: string) => {
     console.log("Handling speak with text:", inputText);
     setIsLoadingRepeat(true);
@@ -277,167 +291,153 @@ const generalAdviceInfo = "We're committed to supporting your overall health and
   }, [mediaStream, stream]);
 
   return (
-    <div className="relative w-full h-full p-4">
-      {/* Top Section: Left Sidebar, Main Card, and Right Sidebar */}
-      <div className="flex w-full gap-4 justify-center items-start">
-        {/* Sidebar Card on the Left */}
-        {stream && (
-          <Card className="h-[300px] w-1/4 flex flex-col justify-center">
-            <CardBody className="flex flex-col gap-4 justify-center items-center">
-              <Sidebar
-                speakText={speakText}
-                caesareanSectionInfo={caesareanSectionInfo}
-                beforeHospitalInfo={beforeHospitalInfo}
-                dayOfOperationInfo={dayOfOperationInfo}
-                afterOperationInfo={afterOperationInfo}
-                generalAdviceInfo={generalAdviceInfo}
-              />
-            </CardBody>
-          </Card>
-        )}
+    <div className="relative w-full h-full p-4 flex justify-center items-center gap-4" style={{ backgroundColor: '#C6EEF1' }}>
+      {/* Main Card */}
+      <Card className="w-[600px] h-[500px]" style={{ backgroundColor: '#C6EEF1' }}>
+        <CardBody className="flex flex-col items-center gap-4">
+          {/* Avatar Video */}
+          {stream ? (
+            <div className="relative h-[150px] w-[200px] flex justify-center items-center rounded-lg overflow-hidden border-4 border-blue-500 shadow-lg">
+              <div className="h-[150px] w-[200px] relative overflow-hidden">
+                <video
+                  ref={mediaStream}
+                  autoPlay
+                  playsInline
+                  style={{
+                    width: "100%",
+                    height: "200%",
+                    objectFit: "cover",
+                    objectPosition: "center top",
+                    position: "absolute",
+                    top: 0,
+                    left: 0,
+                  }}
+                >
+                  <track kind="captions" />
+                </video>
+              </div>
+            </div>
+          ) : !isLoadingSession ? (
+            <div className="h-[300px] flex flex-col gap-4 justify-center items-center w-full">
+              <div className="flex flex-col gap-2 w-full max-w-xs">
+                <Select label="Select Hospital" placeholder="Select Hospital" onChange={(e) => setKnowledgeId(e.target.value)}>
+                  {STT_KNOWLEDGE_LIST.map((hospital) => (
+                    <SelectItem key={hospital.key} value={hospital.key}>
+                      {hospital.label}
+                    </SelectItem>
+                  ))}
+                </Select>
+                <Select label="Select Custom Avatar" placeholder="Select one from these example avatars" selectedKeys={[avatarId]} onChange={(e) => setAvatarId(e.target.value)}>
+                  {AVATARS.map((avatar) => (
+                    <SelectItem key={avatar.avatar_id} value={avatar.avatar_id}>
+                      {avatar.name}
+                    </SelectItem>
+                  ))}
+                </Select>
+                <Select label="Select Voice" placeholder="Select one" selectedKeys={[voiceId]} onChange={(e) => setVoiceId(e.target.value)}>
+                  {VOICES.map((voice) => (
+                    <SelectItem key={voice.voice_id} value={avatar.voice_id}>
+                      {voice.name}
+                    </SelectItem>
+                  ))}
+                </Select>
+                <Select label="Select language" placeholder="Select language" selectedKeys={[language]} onChange={(e) => setLanguage(e.target.value)}>
+                  {STT_LANGUAGE_LIST.map((lang) => (
+                    <SelectItem key={lang.key} value={lang.key}>
+                      {lang.label}
+                    </SelectItem>
+                  ))}
+                </Select>
+              </div>
+              <Button color="primary" size="md" onPress={startSession} style={{ backgroundColor: '#41C5D1', color: 'white' }}>
+                Start session
+              </Button>
+            </div>
+          ) : (
+            <div className="h-[300px] flex items-center justify-center">
+              <Spinner color="default" size="lg" />
+            </div>
+          )}
   
-        {/* Main Card */}
-        <Card className="flex-2">
-  <CardBody className="h-[300px] w-[350px] flex flex-row items-center justify-between">
-    {/* Main Content Area */}
-    {stream ? (
-      <div className="flex flex-row w-full gap-4">
-<div className="relative h-[150px] w-[200px] flex justify-center items-center 
-    rounded-lg overflow-hidden border-4 border-blue-500 shadow-lg">
-  <div className="h-[150px] w-[200px] relative overflow-hidden">
-    <video
-      ref={mediaStream}
-      autoPlay
-      playsInline
-      style={{
-        width: "100%",
-        height: "200%",
-        objectFit: "cover",
-        objectPosition: "center top",
-        position: "absolute",
-        top: 0,
-        left: 0,
-      }}
-    >
-      <track kind="captions" />
-    </video>
-  </div>
-        </div>
-        {/* Buttons Section */}
-        <div className="flex flex-row justify-center">
-          <Session
-            endSession={endSession}
-            handleInterrupt={handleInterrupt}
-            handleDownload={handleDownload}
-          />
-        </div>
-      </div>
-    ) : !isLoadingSession ? (
-      <div className="h-full flex flex-col gap-8 justify-center items-center w-[500px] self-center">
-        <div className="flex flex-col gap-2 w-full">
-          <p className="text-sm font-medium leading-none">
-            Select Custom Avatar
-          </p>
-          <Select
-            placeholder="Select one from these example avatars"
-            size="md"
-            selectedKeys={[avatarId]} // Controlled selection
-            onChange={(e) => setAvatarId(e.target.value)} // Update state on selection change
-          >
-            {AVATARS.map((avatar) => (
-              <SelectItem key={avatar.avatar_id} value={avatar.avatar_id}>
-                {avatar.name}
-              </SelectItem>
-            ))}
-          </Select>
-          <Select
-            label="Select language"
-            placeholder="Select language"
-            className="max-w-xs"
-            selectedKeys={[language]}
-            onChange={(e) => {
-              setLanguage(e.target.value);
-            }}
-          >
-            {STT_LANGUAGE_LIST.map((lang) => (
-              <SelectItem key={lang.key} value={lang.key}>
-                {lang.label}
-              </SelectItem>
-            ))}
-          </Select>
-        </div>
-        <Button color="primary" size="md" onPress={startSession}>
-          Start session
-        </Button>
-      </div>
-    ) : (
-      <div className="flex items-center justify-center w-full h-full">
-        <Spinner color="default" size="lg" />
-      </div>
-    )}
-  </CardBody>
-</Card>
-
-      </div>
-
+          {/* Buttons Section */}
+          {stream && (
+            <div className="flex flex-row justify-center gap-2">
+              <Button onPress={handleInterrupt} style={{ backgroundColor: '#41C5D1', color: 'white' }}>
+                Interrupt Avatar
+              </Button>
+              <Button onPress={endSession} style={{ backgroundColor: '#41C5D1', color: 'white' }}>
+                End Session
+              </Button>
+              <Button onPress={handleDownload} style={{ backgroundColor: '#41C5D1', color: 'white' }}>
+                Download Transcript
+              </Button>
+            </div>
+          )}
+  
+          {/* Speech Card */}
+          {stream && (
+            <div className="w-full">
+              <div className="mb-2">
+                <span className="font-bold text-primary text-sm">User Speech:</span>
+                <div className="bg-gray-100 p-2 rounded text-black h-[50px] overflow-y-auto text-sm flex flex-col-reverse">
+                  {currentUserSpeech ? (
+                    currentUserSpeech.split("\n").map((msg, index, array) => (
+                      <div key={array.length - 1 - index}>
+                        <span className="text-xs text-gray-500">User. </span>
+                        <span>{msg}</span>
+                      </div>
+                    ))
+                  ) : (
+                    <div>Waiting for user input...</div>
+                  )}
+                </div>
+              </div>
+              <div>
+                <span className="font-bold text-blue-600 text-sm">Avatar Speech:</span>
+                <div className="bg-blue-100 p-2 rounded text-black min-h-[50px] max-h-[100px] overflow-y-auto text-sm flex flex-col-reverse">
+                  {currentAvatarSpeech ? (
+                    currentAvatarSpeech.split("\n").map((msg, index, array) => (
+                      <div key={array.length - 1 - index}>
+                        <span className="text-xs text-gray-500">Avatar. </span>
+                        <span>{msg}</span>
+                      </div>
+                    ))
+                  ) : (
+                    <div>Waiting for avatar response...</div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+        </CardBody>
+      </Card>
+  
+      {/* Left Sidebar */}
       {stream && (
-  <Card className="left-1/2 transform -translate-x-1/2 translate-y-4 w-[585px]">
-  <CardBody className="flex flex-col gap-2 p-2">
-    {/* User Speech Section */}
-<div>
-  <span className="font-bold text-primary text-sm">User Speech:</span>
-  <div className="bg-gray-100 p-2 rounded text-black h-[100px] overflow-y-auto text-sm flex flex-col-reverse"
-       style={{
-         scrollbarWidth: "thin",
-         scrollbarColor: "#ccc #f1f1f1",
-       }}>
-    {currentUserSpeech ? (
-      currentUserSpeech.split("\n").map((msg, index, array) => (
-        <div key={array.length - 1 - index}>
-          <span className="text-xs text-gray-500">User. </span>
-          <span>{msg}</span>
-        </div>
-      ))
-    ) : (
-      <div>Waiting for user input...</div>
-    )}
-  </div>
-</div>
-
-{/* Avatar Speech Section */}
-<div>
-  <span className="font-bold text-blue-600 text-sm">Avatar Speech:</span>
-  <div className="bg-blue-100 p-2 rounded text-black min-h-[50px] max-h-[200px] overflow-y-auto text-sm flex flex-col-reverse"
-       style={{
-         scrollbarWidth: "thin",
-         scrollbarColor: "#ccc #f1f1f1",
-       }}>
-    {currentAvatarSpeech ? (
-      currentAvatarSpeech.split("\n").map((msg, index, array) => (
-        <div key={array.length - 1 - index}>
-          <span className="text-xs text-gray-500">Avatar. </span>
-          <span>{msg}</span>
-        </div>
-      ))
-    ) : (
-      <div>Waiting for avatar response...</div>
-    )}
-  </div>
-</div>
-  </CardBody>
-</Card>
-
-)}
-{stream && (
-                  <Chip 
-        color={isListening ? "success" : "default"} 
-        variant="solid" 
-        className="absolute bottom-2 right-2"
-      >
-        {isListening ? "Listening" : "Not Listening"}
-      </Chip>
+        <Card className="w-[500px] h-[500px]" style={{ backgroundColor: '#C6EEF1' }}>
+          <CardBody className="flex flex-col gap-4 justify-center items-center">
+            <Sidebar
+              speakText={speakText}
+              caesareanSectionInfo={caesareanSectionInfo}
+              beforeHospitalInfo={beforeHospitalInfo}
+              dayOfOperationInfo={dayOfOperationInfo}
+              afterOperationInfo={afterOperationInfo}
+              generalAdviceInfo={generalAdviceInfo}
+            />
+          </CardBody>
+        </Card>
+      )}
+  
+      {/* Listening Status Chip */}
+      {stream && (
+        <Chip 
+          color={isListening ? "success" : "default"} 
+          variant="solid" 
+          className="absolute bottom-2 right-2"
+        >
+          {isListening ? "Listening" : "Not Listening"}
+        </Chip>
       )}
     </div>
-  );  
-  
-}
+  );
+  }

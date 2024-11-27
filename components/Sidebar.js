@@ -7,36 +7,36 @@ const Sidebar = ({ speakText, caesareanSectionInfo, beforeHospitalInfo, dayOfOpe
   return (
     <div className="flex flex-col gap-2 pr-4 items-start justify-start">
       <Button
-        color="secondary"
         auto
+        style={{ backgroundColor: '#41C5D1', color: 'white' }}
         onPress={() => speakText(caesareanSectionInfo)}
       >
         About C-Section
       </Button>
       <Button
-        color="secondary"
         auto
+        style={{ backgroundColor: '#41C5D1', color: 'white' }}
         onPress={() => speakText(beforeHospitalInfo)}
       >
         Before You Come
       </Button>
       <Button
-        color="secondary"
         auto
+        style={{ backgroundColor: '#41C5D1', color: 'white' }}
         onPress={() => speakText(dayOfOperationInfo)}
       >
         Day of Operation
       </Button>
       <Button
-        color="secondary"
         auto
+        style={{ backgroundColor: '#41C5D1', color: 'white' }}
         onPress={() => speakText(afterOperationInfo)}
       >
         After Operation
       </Button>
       <Button
-        color="secondary"
         auto
+        style={{ backgroundColor: '#41C5D1', color: 'white' }}
         onPress={() => speakText(generalAdviceInfo)}
       >
         General Advice
