@@ -1,53 +1,42 @@
 export const AVATARS = [
   {
-    avatar_id: "Eric_public_pro2_20230608",
-    name: "Edward in Blue Shirt",
-  },
-  {
-    avatar_id: "Tyler-incasualsuit-20220721",
-    name: "Tyler in Casual Suit",
+    avatar_id: "cc2984a6003a4d5194eb58a4ad570337",
+    name: "Raj",
   },
   {
     avatar_id: "Anna_public_3_20240108",
-    name: "Anna in Brown T-shirt",
-  },
-  {
-    avatar_id: "Susan_public_2_20240328",
-    name: "Susan in Black Shirt",
-  },
-  {
-    avatar_id: "336b72634e644335ad40bd56462fc780",
-    name: "Default Avatar (Woman outside)",
+    name: "Anna",
   },
 ];
 
-export const STT_LANGUAGE_LIST = [
-  { label: "Bulgarian", value: "bg", key: "bg" },
-  { label: "Chinese", value: "zh", key: "zh" },
-  { label: "Czech", value: "cs", key: "cs" },
-  { label: "Danish", value: "da", key: "da" },
-  { label: "Dutch", value: "nl", key: "nl" },
-  { label: "English", value: "en", key: "en" },
-  { label: "Finnish", value: "fi", key: "fi" },
-  { label: "French", value: "fr", key: "fr" },
-  { label: "German", value: "de", key: "de" },
-  { label: "Greek", value: "el", key: "el" },
-  { label: "Hindi", value: "hi", key: "hi" },
-  { label: "Hungarian", value: "hu", key: "hu" },
-  { label: "Indonesian", value: "id", key: "id" },
-  { label: "Italian", value: "it", key: "it" },
-  { label: "Japanese", value: "ja", key: "ja" },
-  { label: "Korean", value: "ko", key: "ko" },
-  { label: "Malay", value: "ms", key: "ms" },
-  { label: "Norwegian", value: "no", key: "no" },
-  { label: "Polish", value: "pl", key: "pl" },
-  { label: "Portuguese", value: "pt", key: "pt" },
-  { label: "Romanian", value: "ro", key: "ro" },
-  { label: "Russian", value: "ru", key: "ru" },
-  { label: "Slovak", value: "sk", key: "sk" },
-  { label: "Spanish", value: "es", key: "es" },
-  { label: "Swedish", value: "sv", key: "sv" },
-  { label: "Turkish", value: "tr", key: "tr" },
-  { label: "Ukrainian", value: "uk", key: "uk" },
-  { label: "Vietnamese", value: "vi", key: "vi" },
+export const VOICES = [
+  {
+    voice_id: "f5a3cb4edbfc4d37b5614ce118be7bc8",
+    name: "British Male",
+  },
+  {
+    voice_id: "628161fd1c79432d853b610e84dbc7a4",
+    name: "British Female",
+  },
+  {
+    voice_id: "90fc4e27e9e349f196767c0ada520abd",
+    name: "French Male",
+  },
+  {
+    voice_id: "80f371302eaa4404870daa41dc62423c",
+    name: "French Female",
+  },
 ];
+
+
+
+export const STT_LANGUAGE_LIST = [
+  { label: "English", value: "en", key: "en" },
+  { label: "French", value: "fr", key: "fr" },
+];
+
+export const STT_KNOWLEDGE_LIST = [
+  { label: "UHCW", value: "bb77e29751334e21b1ea609fb8223bc3", key: "bb77e29751334e21b1ea609fb8223bc3" },
+  { label: "Surgery", value: "5396ae31c49140b89948a7e8bdec4578", key: "5396ae31c49140b89948a7e8bdec4578" },
+];
+
