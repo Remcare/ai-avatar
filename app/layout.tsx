@@ -23,7 +23,7 @@ export const metadata: Metadata = {
     template: `%s - Remcare AI Avatar`,
   },
   icons: {
-    icon: "/heygen-logo.png",
+    icon: "/Remcare_Logo_Digital_Dark-Blue.png",
   },
 };
 
@@ -46,7 +46,7 @@ export default function RootLayout({
       className={`${fontSans.variable} ${fontMono.variable} font-sans`}
     >
       <head />
-      <body className={clsx("min-h-screen bg-background antialiased")}>
+      <body className={clsx("min-h-screen bg-background antialiased")} style={{ backgroundColor: '#C6EEF1' }}>
         <Providers themeProps={{ attribute: "class", defaultTheme: "dark" }}>
           <main className="relative flex flex-col h-screen w-screen">
             {children}
