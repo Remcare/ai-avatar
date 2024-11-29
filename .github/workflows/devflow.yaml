@@ -51,7 +51,7 @@ jobs:
               git checkout dev
             fi
             
-            echo "Pulling latest code in /home/ec2-user/ai-avatar1"
+            echo "Pulling latest code in /home/ec2-user/ai-avatar"
             cd /home/ec2-user/ai-avatar  
             git pull
             
