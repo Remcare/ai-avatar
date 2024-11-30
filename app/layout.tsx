@@ -23,7 +23,7 @@ export const metadata: Metadata = {
     template: `%s - Remcare AI Avatar`,
   },
   icons: {
-    icon: "/Remcare_Logo_Digital_Dark-Blue.png",
+    icon: "/remcare-1.jpg",
   },
 };
 
