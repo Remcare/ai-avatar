@@ -17,7 +17,7 @@ import {
   Tabs,
   Tab,
 } from "@nextui-org/react";
-import { useEffect, useRef, useState, } from "react";
+import { SetStateAction, useEffect, useRef, useState, } from "react";
 import { useMemoizedFn, usePrevious } from "ahooks";
 import Sidebar from "./Sidebar";
 import Session from "./Session";
@@ -158,6 +158,25 @@ export default function InteractiveAvatar() {
     }
   }
 
+  const handleVoiceChange = (voiceId: SetStateAction<string>) => {
+    setVoiceId(voiceId);
+
+    // Find the selected voice
+    const selectedVoice = VOICES.find((voice) => voice.voice_id === voiceId);
+    if (selectedVoice) {
+      // Set the language
+      setLanguage(selectedVoice.language);
+
+      // Set the avatar based on gender
+      const matchingAvatar = AVATARS.find(
+        (avatar) => avatar.gender === selectedVoice.gender
+      );
+      if (matchingAvatar) {
+        setAvatarId(matchingAvatar.avatar_id);
+      }
+    }
+  };
+
   const handleSpeak = async (inputText: string) => {
     console.log("Handling speak with text:", inputText);
     setIsLoadingRepeat(true);
@@ -293,32 +312,28 @@ const generalAdviceInfo = "We're committed to supporting your overall health and
   return (
     <div className="relative w-full h-full p-4 flex justify-center items-center gap-4" style={{ backgroundColor: '#C6EEF1' }}>
       {/* Main Card */}
+      <div className="w-[500px] h-[500px] flex gap-4 justify-center items-start">
       <Card className="w-[600px] h-[500px]" style={{ backgroundColor: '#C6EEF1' }}>
-        <CardBody className="flex flex-col items-center gap-4">
+        <CardBody className="flex flex-col items-center h-full p-0">
           {/* Avatar Video */}
           {stream ? (
-            <div className="relative h-[150px] w-[200px] flex justify-center items-center rounded-lg overflow-hidden border-4 border-blue-500 shadow-lg">
-              <div className="h-[150px] w-[200px] relative overflow-hidden">
-                <video
-                  ref={mediaStream}
-                  autoPlay
-                  playsInline
-                  style={{
-                    width: "100%",
-                    height: "200%",
-                    objectFit: "cover",
-                    objectPosition: "center top",
-                    position: "absolute",
-                    top: 0,
-                    left: 0,
-                  }}
-                >
-                  <track kind="captions" />
-                </video>
-              </div>
-            </div>
+                   <div className="relative flex justify-center items-center h-[70%] w-full rounded-t-lg overflow-hidden border-b-2 border-blue-500">
+                   <video
+                     ref={mediaStream}
+                     autoPlay
+                     playsInline
+                     style={{
+                       width: '100%',
+                       height: '100%',
+                       objectFit: 'cover',
+                       objectPosition: 'center',
+                     }}
+                   >
+                     <track kind="captions" />
+                   </video>
+                 </div>
           ) : !isLoadingSession ? (
-            <div className="h-[300px] flex flex-col gap-4 justify-center items-center w-full">
+            <div className="flex flex-col gap-4 justify-center items-center w-full h-full">
               <div className="flex flex-col gap-2 w-full max-w-xs">
                 <Select label="Select Hospital" placeholder="Select Hospital" onChange={(e) => setKnowledgeId(e.target.value)}>
                   {STT_KNOWLEDGE_LIST.map((hospital) => (
@@ -327,117 +342,141 @@ const generalAdviceInfo = "We're committed to supporting your overall health and
                     </SelectItem>
                   ))}
                 </Select>
-                <Select label="Select Custom Avatar" placeholder="Select one from these example avatars" selectedKeys={[avatarId]} onChange={(e) => setAvatarId(e.target.value)}>
-                  {AVATARS.map((avatar) => (
-                    <SelectItem key={avatar.avatar_id} value={avatar.avatar_id}>
-                      {avatar.name}
-                    </SelectItem>
-                  ))}
-                </Select>
-                <Select label="Select Voice" placeholder="Select one" selectedKeys={[voiceId]} onChange={(e) => setVoiceId(e.target.value)}>
-                  {VOICES.map((voice) => (
-                    <SelectItem key={voice.voice_id} value={avatar.voice_id}>
-                      {voice.name}
-                    </SelectItem>
-                  ))}
-                </Select>
-                <Select label="Select language" placeholder="Select language" selectedKeys={[language]} onChange={(e) => setLanguage(e.target.value)}>
-                  {STT_LANGUAGE_LIST.map((lang) => (
-                    <SelectItem key={lang.key} value={lang.key}>
-                      {lang.label}
-                    </SelectItem>
-                  ))}
-                </Select>
+                <Select
+        label="Select Voice"
+        placeholder="Select one"
+        selectedKeys={[voiceId]}
+        onChange={(e) => handleVoiceChange(e.target.value)}
+      >
+        {VOICES.map((voice) => (
+          <SelectItem key={voice.voice_id} value={voice.voice_id}>
+            {voice.name}
+          </SelectItem>
+        ))}
+      </Select>
+
+      <Select
+        label="Select Custom Avatar"
+        placeholder="Select one from these example avatars"
+        selectedKeys={[avatarId]}
+        onChange={(e) => setAvatarId(e.target.value)}
+      >
+        {AVATARS.map((avatar) => (
+          <SelectItem key={avatar.avatar_id} value={avatar.avatar_id}>
+            {avatar.name}
+          </SelectItem>
+        ))}
+      </Select>
+
+      {/*<Select
+        label="Select Language"
+        placeholder="Select one"
+        selectedKeys={[language]}
+        onChange={(e) => setLanguage(e.target.value)}
+      >
+        {STT_LANGUAGE_LIST.map((lang) => (
+          <SelectItem key={lang.key} value={lang.value}>
+            {lang.label}
+          </SelectItem>
+        ))}
+      </Select>*/}
               </div>
               <Button color="primary" size="md" onPress={startSession} style={{ backgroundColor: '#41C5D1', color: 'white' }}>
                 Start session
               </Button>
             </div>
           ) : (
-            <div className="h-[300px] flex items-center justify-center">
+            <div className="flex items-center justify-center w-full h-full">
               <Spinner color="default" size="lg" />
             </div>
           )}
   
           {/* Buttons Section */}
           {stream && (
-            <div className="flex flex-row justify-center gap-2">
-              <Button onPress={handleInterrupt} style={{ backgroundColor: '#41C5D1', color: 'white' }}>
-                Interrupt Avatar
-              </Button>
-              <Button onPress={endSession} style={{ backgroundColor: '#41C5D1', color: 'white' }}>
-                End Session
-              </Button>
-              <Button onPress={handleDownload} style={{ backgroundColor: '#41C5D1', color: 'white' }}>
-                Download Transcript
-              </Button>
-            </div>
-          )}
+      <div className="flex justify-center items-center gap-4 w-full h-[10%] bg-blue-200 border-b-2 border-blue-300" style={{ backgroundColor: '#80D5DE'}}>
+        <Button onPress={handleInterrupt}  style={{ backgroundColor: '#2CA9B5', color: 'white' }}>
+          Interrupt Avatar
+        </Button>
+        <Button onPress={endSession}  style={{ backgroundColor: '#2CA9B5', color: 'white' }}>
+          End Session
+        </Button>
+        <Button onPress={handleDownload} style={{ backgroundColor: '#2CA9B5', color: 'white' }}>
+          Download Transcript
+        </Button>
+      </div>
+    )}
   
           {/* Speech Card */}
           {stream && (
-            <div className="w-full">
-              <div className="mb-2">
-                <span className="font-bold text-primary text-sm">User Speech:</span>
-                <div className="bg-gray-100 p-2 rounded text-black h-[50px] overflow-y-auto text-sm flex flex-col-reverse">
-                  {currentUserSpeech ? (
-                    currentUserSpeech.split("\n").map((msg, index, array) => (
-                      <div key={array.length - 1 - index}>
-                        <span className="text-xs text-gray-500">User. </span>
-                        <span>{msg}</span>
-                      </div>
-                    ))
-                  ) : (
-                    <div>Waiting for user input...</div>
-                  )}
-                </div>
+            <div className="w-full h-[20%] bg-white p-4 rounded-md shadow-inner border-2 border-gray-200 overflow-y-auto text-sm">
+{[{ title: 'User Speech', speech: currentUserSpeech, bgColor: 'bg-gray-100', textColor: 'text-primary' },
+      { title: 'Avatar Speech', speech: currentAvatarSpeech, bgColor: 'bg-blue-100', textColor: 'text-blue-600' }
+    ].map(({ title, speech, bgColor, textColor }, idx) => (
+      <div key={idx} className="mb-2">
+        <span className={`font-bold ${textColor} text-sm`}>{title}:</span>
+        <div className={`${bgColor} p-2 rounded text-black min-h-[50px] max-h-[100px] overflow-y-auto text-sm flex flex-col-reverse`}>
+          {speech ? (
+            speech.split("\n").map((msg, index, array) => (
+              <div key={array.length - 1 - index}>
+                <span className="text-xs text-gray-500">{title.split(' ')[0]}. </span>
+                <span>{msg}</span>
               </div>
-              <div>
-                <span className="font-bold text-blue-600 text-sm">Avatar Speech:</span>
-                <div className="bg-blue-100 p-2 rounded text-black min-h-[50px] max-h-[100px] overflow-y-auto text-sm flex flex-col-reverse">
-                  {currentAvatarSpeech ? (
-                    currentAvatarSpeech.split("\n").map((msg, index, array) => (
-                      <div key={array.length - 1 - index}>
-                        <span className="text-xs text-gray-500">Avatar. </span>
-                        <span>{msg}</span>
-                      </div>
-                    ))
-                  ) : (
-                    <div>Waiting for avatar response...</div>
-                  )}
-                </div>
-              </div>
-            </div>
+            ))
+          ) : (
+            <div>Waiting for {title.toLowerCase()}...</div>
           )}
+        </div>
+      </div>
+    ))}
+    </div>
+)}
+
         </CardBody>
       </Card>
-  
+      </div>
       {/* Left Sidebar */}
-      {stream && (
-        <Card className="w-[500px] h-[500px]" style={{ backgroundColor: '#C6EEF1' }}>
-          <CardBody className="flex flex-col gap-4 justify-center items-center">
-            <Sidebar
-              speakText={speakText}
-              caesareanSectionInfo={caesareanSectionInfo}
-              beforeHospitalInfo={beforeHospitalInfo}
-              dayOfOperationInfo={dayOfOperationInfo}
-              afterOperationInfo={afterOperationInfo}
-              generalAdviceInfo={generalAdviceInfo}
-            />
+{/* Left Sidebar */}
+
+{stream && (
+  <><div className="w-[500px] h-[500px] flex gap-4 justify-center items-start"><Card className="w-[600px] h-[500px]" style={{ backgroundColor: '#80D5DE', padding: '20px' }}>
+          <CardBody className="flex flex-col gap-4">
+            <div className="text-left mb-4">
+              <h3 className="text-lg font-bold text-black">What would you like to ask?</h3>
+            </div>
+            <div className="flex flex-col items-start gap-2">
+              <button className="w-[150px] h-[40px] bg-[#00A4B8] text-white rounded-full hover:bg-[#007A8A]">
+                About C-Section
+              </button>
+              <button className="w-[150px] h-[40px] bg-[#00A4B8] text-white rounded-full hover:bg-[#007A8A]">
+                Before You Come
+              </button>
+              <button className="w-[150px] h-[40px] bg-[#00A4B8] text-white rounded-full hover:bg-[#007A8A]">
+                Day of Operation
+              </button>
+              <button className="w-[150px] h-[40px] bg-[#00A4B8] text-white rounded-full hover:bg-[#007A8A]">
+                After Operation
+              </button>
+              <button className="w-[150px] h-[40px] bg-[#00A4B8] text-white rounded-full hover:bg-[#007A8A]">
+                General Advice
+              </button>
+            </div>
           </CardBody>
+
+          <CardFooter>
+            {/* Listening Status Chip */}
+            {stream && (
+              <Chip
+                color={isListening ? "success" : "default"}
+                variant="solid"
+                className="absolute bottom-2 right-2"
+              >
+                {isListening ? "Listening" : "Not Listening"}
+              </Chip>
+            )}
+          </CardFooter>
         </Card>
-      )}
-  
-      {/* Listening Status Chip */}
-      {stream && (
-        <Chip 
-          color={isListening ? "success" : "default"} 
-          variant="solid" 
-          className="absolute bottom-2 right-2"
-        >
-          {isListening ? "Listening" : "Not Listening"}
-        </Chip>
-      )}
+        </div></>
+)}
     </div>
   );
   }
