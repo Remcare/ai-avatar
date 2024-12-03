@@ -25,6 +25,7 @@ import InteractiveAvatarTextInput from "./InteractiveAvatarTextInput";
 import {AVATARS, VOICES,STT_LANGUAGE_LIST,STT_KNOWLEDGE_LIST} from "@/app/lib/constants";
 import { addTranscribedText, clearTranscribedTexts, handleDownload } from './transcriptManager';
 
+
 export default function InteractiveAvatar() {
   const [isLoadingSession, setIsLoadingSession] = useState(false);
   const [isLoadingRepeat, setIsLoadingRepeat] = useState(false);
@@ -45,6 +46,10 @@ export default function InteractiveAvatar() {
   const [transcribedTexts, addTranscribedTexts] = useState<Array<{text: string, timestamp: string, speaker: 'user' | 'avatar'}>>([]);
   const [currentAvatarMessage, setCurrentAvatarMessage] = useState<string>("");
   const [isListening, setIsListening] = useState(false);
+// Add these state variables at the beginning of your component
+const [displayedWords, setDisplayedWords] = useState<string[]>([]); // Words to be displayed as subtitle
+const [isDisplaying, setIsDisplaying] = useState(false); // Flag to check if we're displaying a sentence
+
   
   async function fetchAccessToken() {
     try {
@@ -80,15 +85,14 @@ export default function InteractiveAvatar() {
     // Event listener for AVATAR_TALKING_MESSAGE
     avatar.current?.on(StreamingEvents.AVATAR_TALKING_MESSAGE, (event: CustomEvent) => {
       const chunk = event.detail.message;
-      avatarspeech += chunk;
+      avatarspeech += chunk; // Accumulate chunks into one message
     });
     avatar.current?.on(StreamingEvents.AVATAR_END_MESSAGE, (event: CustomEvent) => {
       console.log('Avatar end message:', avatarspeech);
       addTranscribedText(avatarspeech, 'avatar');
-      setCurrentAvatarSpeech(prev => prev + avatarspeech + "\n");
-      avatarspeech = "";
+      setCurrentAvatarSpeech(prev => avatarspeech + "\n" + prev); // Prepend accumulated speech
+      avatarspeech = ""; // Reset after processing
     });
-
     avatar.current.on(StreamingEvents.AVATAR_STOP_TALKING, (e) => {
       console.log("Avatar stopped talking", e);
     });
@@ -99,7 +103,7 @@ export default function InteractiveAvatar() {
     avatar.current?.on(StreamingEvents.STREAM_READY, async (event) => {
       console.log(">>>>> Stream ready:", event.detail);
       setStream(event.detail);
-      await giveIntroductionSpeech();
+      speakText(introductionText);
     });
     avatar.current?.on(StreamingEvents.USER_START, (event) => {
       console.log(">>>>> User started talking:", event);
@@ -157,7 +161,32 @@ export default function InteractiveAvatar() {
       setIsLoadingSession(false);
     }
   }
-
+  const displayWordsProgressively = (sentence: string) => {
+    setDisplayedWords([]);
+    const words = sentence.split(' ');
+    let currentIndex = 0;
+    const wordsPerSecond = 2.5; // 52 words / 40 seconds
+    const displayDuration = 2; // Display subtitles for 3 seconds
+  
+    const displayNextChunk = () => {
+      if (currentIndex < words.length) {
+        const chunkSize = Math.ceil(wordsPerSecond * displayDuration);
+        const chunk = words.slice(currentIndex, currentIndex + chunkSize);
+        setDisplayedWords(chunk);
+        currentIndex += chunkSize;
+  
+        const actualChunkDuration = (chunk.length / wordsPerSecond) * 1000;
+        setTimeout(displayNextChunk, actualChunkDuration);
+      } else {
+        setDisplayedWords([]);
+        setIsDisplaying(false);
+      }
+    };
+  
+    setIsDisplaying(true);
+    displayNextChunk();
+  };
+  
   const handleVoiceChange = (voiceId: SetStateAction<string>) => {
     setVoiceId(voiceId);
 
@@ -177,58 +206,18 @@ export default function InteractiveAvatar() {
     }
   };
 
-  const handleSpeak = async (inputText: string) => {
-    console.log("Handling speak with text:", inputText);
-    setIsLoadingRepeat(true);
-    if (!avatar.current) {
-      console.warn("Avatar API not initialized");
-      setDebug("Avatar API not initialized");
-      return;
-    }
-    try {
-      // First, get AI response from chat endpoint
-      const chatResponse = await fetch("/api/chat", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ message: inputText }),
-      });
-
-      if (!chatResponse.ok) {
-        throw new Error("Chat request failed");
-      }
-
-      const { response: aiResponse } = await chatResponse.json();
-      console.log("Chat API response:", aiResponse);
-
-      // Then, have avatar speak the AI response
-      const response = await avatar.current.speak({
-        text: aiResponse,
-        task_type: TaskType.REPEAT,
-      });
-      console.log("Avatar speak response:", response);
-    } catch (e: any) {
-      console.error("Error in avatar speak:", e);
-      setDebug(`Error in avatar speak: ${e.message}`);
-    } finally {
-      setIsLoadingRepeat(false);
-    }
-  };
-
   async function handleInterrupt() {
     if (!avatar.current) {
       setDebug("Avatar API not initialized");
-
       return;
     }
-    await avatar.current
-      .interrupt()
-      .catch((e) => {
-        setDebug(e.message);
-      });
+    
+      await avatar.current.interrupt();
+      // Clear the subtitles
+      setDisplayedWords([]);
+      setIsDisplaying(false);
+    
   }
-
   async function endSession() {
     clearTranscribedTexts(); // Clear all transcribed texts
     setCurrentUserSpeech(""); // Clear user speech
@@ -248,19 +237,7 @@ export default function InteractiveAvatar() {
     }
     setChatMode(v);
   });
-    //Handle the Intro Speech
-    const giveIntroductionSpeech = async () => {
-      if (!avatar.current) return;
-      const introductionText = "Hello, I am your virtual assistant. You can ask me any questions on Caesarean section and Anesthesia. I have been trained to answer questions from information given to me by University Hospital of Coventry & Warwickshire. You could ask me anything about Cesarian Section or what to expect on the day of the operation.";
-      try {
-        await avatar.current.speak({
-          text: introductionText,
-          task_type: TaskType.REPEAT,
-        });
-      } catch (error) {
-        console.error("Error during introduction speech:", error);
-      }
-    };
+
 
   const speakText = async (text: string) => {
     if (!avatar.current) return;
@@ -274,15 +251,22 @@ export default function InteractiveAvatar() {
     }
   };
   
+  const userSpeechRef = useRef<HTMLDivElement>(null);
+  const avatarSpeechRef = useRef<HTMLDivElement>(null);
+
 
   const previousText = usePrevious(text);
   //Text varibales for each section
+  const introductionText = "Hello, I am your virtual assistant. You can ask me any questions on Caesarean section and Anesthesia. I have been trained to answer questions from information given to me by University Hospital of Coventry & Warwickshire. You could ask me anything about Cesarian Section or what to expect on the day of the operation.";
 const caesareanSectionInfo = "A Caesarean Section is a surgical procedure to deliver a baby through an incision in the abdomen and uterus, typically performed when a natural birth might pose risks to mother or child. Here, we'll explain why this procedure might be necessary, the benefits and risks involved, and circumstances under which you should contact our Labour Ward before your scheduled procedure. This section aims to provide you with a full understanding of what to expect.";
 const beforeHospitalInfo = "Preparation is key to ensuring a smooth experience on the day of your Caesarean Section. In this section, we'll cover what to expect during your pre-operative assessment, the types of anesthesia available, and how to prepare the night before. Additionally, we'll go over a list of essential items to bring with you. Proper preparation will help ease any stress on the day of the procedure.";
 const dayOfOperationInfo = "On the day of your operation, you'll check in at the hospital and complete some final preparations with our staff, who will guide you through each step leading up to surgery. This section outlines what to bring, guidelines for fasting, and when to arrive. You'll also learn about procedures like antiseptic washing and the importance of bringing only one birth partner to accompany you. These steps are in place to ensure your safety and comfort. Your Caesarean Section will be performed by a skilled team of healthcare professionals, including obstetricians, anesthetists, and midwives. This section provides an overview of who will be present, the process of spinal or general anesthesia, and how the surgery itself will be conducted. Our aim is for you and your birth partner to feel well-informed and supported throughout the procedure.";
 const afterOperationInfo = "Following surgery, you'll be taken to a recovery area where you'll be closely monitored by our medical team. In this section, we'll discuss the post-operative care available, including pain relief options, strategies to prevent blood clots, and tips for maintaining comfort as you recover. We'll also introduce you to our enhanced recovery program to help you regain strength and mobility as soon as possible.";
 const generalAdviceInfo = "We're committed to supporting your overall health and wellness. This section offers advice on topics like breastfeeding, smoking cessation, and nutritional needs during recovery. Our team is here to guide you with information on family planning and self-care routines to support you both in the hospital and after you return home. Let us know if you have any specific health needs while in our care.";
-  useEffect(() => {
+const recovery="Recovery involves pain management, prevention of blood clots, and gradual mobility within hours after surgery, with discharge typically by the next day and wound care monitored by a midwife." ;
+const sterl="Sterilization, performed during the C-section for permanent contraception, is designed to minimize additional recovery time and is supported by counseling during the hospital stay."; 
+
+useEffect(() => {
     if (!previousText && text) {
       avatar.current?.startListening();
     } else if (previousText && !text) {
@@ -309,6 +293,20 @@ const generalAdviceInfo = "We're committed to supporting your overall health and
     }
   }, [mediaStream, stream]);
 
+
+  useEffect(() => {
+    if (userSpeechRef.current) {
+      userSpeechRef.current.scrollTop = 0;
+    }
+  }, [currentUserSpeech]);
+  
+  useEffect(() => {
+    if (avatarSpeechRef.current) {
+      avatarSpeechRef.current.scrollTop = 0;
+    }
+  }, [currentAvatarSpeech]);
+
+
   return (
     <div className="relative w-full h-full p-4 flex justify-center items-center gap-4" style={{ backgroundColor: '#C6EEF1' }}>
       {/* Main Card */}
@@ -331,7 +329,10 @@ const generalAdviceInfo = "We're committed to supporting your overall health and
                    >
                      <track kind="captions" />
                    </video>
-                 </div>
+                  {/*  <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-50 text-white p-2 text-center">
+    {isDisplaying ? displayedWords.join(' ') : ''}
+  </div>*/}
+                 </div> 
           ) : !isLoadingSession ? (
             <div className="flex flex-col gap-4 justify-center items-center w-full h-full">
               <div className="flex flex-col gap-2 w-full max-w-xs">
@@ -406,29 +407,53 @@ const generalAdviceInfo = "We're committed to supporting your overall health and
       </div>
     )}
   
-          {/* Speech Card */}
-          {stream && (
-            <div className="w-full h-[20%] bg-white p-4 rounded-md shadow-inner border-2 border-gray-200 overflow-y-auto text-sm">
-{[{ title: 'User Speech', speech: currentUserSpeech, bgColor: 'bg-gray-100', textColor: 'text-primary' },
-      { title: 'Avatar Speech', speech: currentAvatarSpeech, bgColor: 'bg-blue-100', textColor: 'text-blue-600' }
-    ].map(({ title, speech, bgColor, textColor }, idx) => (
-      <div key={idx} className="mb-2">
-        <span className={`font-bold ${textColor} text-sm`}>{title}:</span>
-        <div className={`${bgColor} p-2 rounded text-black min-h-[50px] max-h-[100px] overflow-y-auto text-sm flex flex-col-reverse`}>
-          {speech ? (
-            speech.split("\n").map((msg, index, array) => (
-              <div key={array.length - 1 - index}>
-                <span className="text-xs text-gray-500">{title.split(' ')[0]}. </span>
-                <span>{msg}</span>
-              </div>
-            ))
-          ) : (
-            <div>Waiting for {title.toLowerCase()}...</div>
-          )}
-        </div>
+{/* Speech Card */}
+{/* Speech Card */}
+{stream && (
+  <div className="w-full">
+    {/* User Speech Section */}
+    <div className="mb-2">
+      <span className="font-bold text-primary text-sm">User Speech:</span>
+      <div 
+        ref={userSpeechRef}
+        className="bg-gray-100 p-2 rounded text-black max-h-[200px] overflow-y-auto text-sm flex flex-col-reverse"
+        style={{ maxHeight: "100px", overflowY: "auto" }}
+      >
+        {currentUserSpeech ? (
+          currentUserSpeech.split("\n").map((msg, index) => (
+            <div key={index}>
+              <span className="text-xs text-gray-500">User: </span>
+              <span>{msg}</span>
+            </div>
+          ))
+        ) : (
+          <div>Waiting for user input...</div>
+        )}
       </div>
-    ))}
     </div>
+
+    {/* Avatar Speech Section */}
+    <div>
+                <span className="font-bold text-blue-600 text-sm">Avatar Speech:</span>
+    <div ref={avatarSpeechRef} 
+  className="bg-blue-100 p-2 rounded text-black max-h-[300px] overflow-y-auto text-sm flex flex-col-reverse"
+  style={{ maxHeight: "100px", overflowY: "auto" }}
+>
+  {currentAvatarSpeech ? (
+    currentAvatarSpeech.split("\n").reverse().map((speech, index) => (
+      <div key={index} className="mb-2">
+        <span className="text-xs text-gray-500">Avatar: </span>
+        {speech.split("\n").map((line, lineIndex) => (
+          <div key={lineIndex}>{line}</div>
+        ))}
+      </div>
+    ))
+  ) : (
+    <div>Waiting for avatar response...</div>
+  )}
+</div>
+  </div>
+  </div>
 )}
 
         </CardBody>
@@ -444,21 +469,50 @@ const generalAdviceInfo = "We're committed to supporting your overall health and
               <h3 className="text-lg font-bold text-black">What would you like to ask?</h3>
             </div>
             <div className="flex flex-col items-start gap-2">
-              <button className="w-[150px] h-[40px] bg-[#00A4B8] text-white rounded-full hover:bg-[#007A8A]">
-                About C-Section
-              </button>
-              <button className="w-[150px] h-[40px] bg-[#00A4B8] text-white rounded-full hover:bg-[#007A8A]">
-                Before You Come
-              </button>
-              <button className="w-[150px] h-[40px] bg-[#00A4B8] text-white rounded-full hover:bg-[#007A8A]">
-                Day of Operation
-              </button>
-              <button className="w-[150px] h-[40px] bg-[#00A4B8] text-white rounded-full hover:bg-[#007A8A]">
-                After Operation
-              </button>
-              <button className="w-[150px] h-[40px] bg-[#00A4B8] text-white rounded-full hover:bg-[#007A8A]">
-                General Advice
-              </button>
+            <Button
+  style={{ backgroundColor: '#2CA9B5', color: 'white', width: 250 }}
+  onPress={() => speakText(caesareanSectionInfo)}
+>
+  Information about Caesarean Section
+</Button>
+<Button
+  style={{ backgroundColor: '#2CA9B5', color: 'white', width: 250 }}
+  onPress={() => speakText(beforeHospitalInfo)}
+>
+  Before you come into hospital
+</Button>
+<Button
+  style={{ backgroundColor: '#2CA9B5', color: 'white', width: 250 }}
+  onPress={() => speakText(dayOfOperationInfo)}
+>
+  The day of the operation
+</Button>
+<Button
+  style={{ backgroundColor: '#2CA9B5', color: 'white', width: 250 }}
+  onPress={() => speakText(afterOperationInfo)}
+>
+  After your Operation
+</Button>
+<Button
+  style={{ backgroundColor: '#2CA9B5', color: 'white', width: 250 }}
+  onPress={() => speakText(generalAdviceInfo)}
+>
+  General Advice
+</Button>
+<Button
+  style={{ backgroundColor: '#2CA9B5', color: 'white', width: 250 }}
+  onPress={() => speakText(recovery)}
+>
+  Post-Operation recovery
+</Button>
+<Button
+  style={{ backgroundColor: '#2CA9B5', color: 'white', width: 250 }}
+  onPress={() => speakText(sterl)}
+>
+  Caesarian section and sterilization
+</Button>
+
+
             </div>
           </CardBody>
 
