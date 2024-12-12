@@ -1,12 +1,32 @@
 export const AVATARS = [
   {
+    avatar_id: "Dexter_Doctor_Standing2_public",
+    name: "Dr.Dexter",
+    gender: "Male",
+  },
+  {
     avatar_id: "cc2984a6003a4d5194eb58a4ad570337",
     name: "Raj",
     gender: "Male",
   },
   {
+    avatar_id: "Shawn_Therapist_public",
+    name: "Shawn",
+    gender: "Male",
+  },
+  {
+    avatar_id: "Judy_Doctor_Standing2_public",
+    name: "Dr.Judy",
+    gender: "Female",
+  },
+  {
     avatar_id: "Anna_public_3_20240108",
     name: "Anna",
+    gender: "Female",
+  },
+  {
+    avatar_id: "Ann_Doctor_Standing2_public",
+    name: "Dr.Ann",
     gender: "Female",
   },
 ];
