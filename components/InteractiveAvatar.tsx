@@ -116,7 +116,6 @@ const [isDisplaying, setIsDisplaying] = useState(false); // Flag to check if we'
       setCurrentUserSpeech(prev => prev + chunk);
       userspeech += chunk;
     });
-    
     avatar.current?.on(StreamingEvents.USER_END_MESSAGE, (event: CustomEvent) => {
       console.log('User end message:', userspeech);
       addTranscribedText(userspeech, 'user');
