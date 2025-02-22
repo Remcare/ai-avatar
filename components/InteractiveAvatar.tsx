@@ -185,26 +185,6 @@ const [isDisplaying, setIsDisplaying] = useState(false); // Flag to check if we'
     setIsDisplaying(true);
     displayNextChunk();
   };
-
-    const toggleListening = useMemoizedFn(async () => {
-    if (!avatar.current) {
-      console.warn("Avatar API not initialized.");
-      return;
-    }
-    setIsListening(true);
-    try {
-      if (isListening) {
-        // Stop listening (turn off voice chat)
-        await avatar.current.closeVoiceChat();
-      } else {
-        // Start listening (turn on voice chat)
-        await avatar.current.startVoiceChat();
-      }
-      setIsListening(false); // Toggle the isListening states
-    } catch (error) {
-      console.error("Error toggling voice chat:", error);
-    }
-  });
   
   const handleVoiceChange = (voiceId: SetStateAction<string>) => {
     setVoiceId(voiceId);
@@ -414,9 +394,6 @@ useEffect(() => {
           {/* Buttons Section */}
           {stream && (
       <div className="flex justify-center items-center gap-4 w-full h-[10%] bg-blue-200 border-b-2 border-blue-300" style={{ backgroundColor: '#80D5DE'}}>
-      <Button onPress={toggleListening}>
-        {isListening ? "Stop Listening" : "Start Listening"}
-      </Button>
         <Button onPress={handleInterrupt}  style={{ backgroundColor: '#2CA9B5', color: 'white' }}>
           Interrupt Avatar
         </Button>
