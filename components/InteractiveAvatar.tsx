@@ -36,7 +36,7 @@ export default function InteractiveAvatar() {
   const [data, setData] = useState<StartAvatarResponse>();
   const [text, setText] = useState<string>("");
   const [knowledgeId, setKnowledgeId] = useState<string>("");
-  const [voiceId, setVoiceId] = useState<string>("");
+ const [voiceId, setVoiceId] = useState<string>("");
   const mediaStream = useRef<HTMLVideoElement>(null);
   const avatar = useRef<StreamingAvatar | null>(null);
   const [chatMode, setChatMode] = useState("text_mode");
@@ -46,11 +46,11 @@ export default function InteractiveAvatar() {
   const [transcribedTexts, addTranscribedTexts] = useState<Array<{text: string, timestamp: string, speaker: 'user' | 'avatar'}>>([]);
   const [currentAvatarMessage, setCurrentAvatarMessage] = useState<string>("");
   const [isListening, setIsListening] = useState(false);
+  const isListeningRef = useRef(false);
+  
 // Add these state variables at the beginning of your component
 const [displayedWords, setDisplayedWords] = useState<string[]>([]); // Words to be displayed as subtitle
 const [isDisplaying, setIsDisplaying] = useState(false); // Flag to check if we're displaying a sentence
-    const [isListening, setIsListening] = useState(false);
-  const isListeningRef = useRef(false);
 
   
   async function fetchAccessToken() {
