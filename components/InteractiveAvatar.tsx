@@ -49,6 +49,8 @@ export default function InteractiveAvatar() {
 // Add these state variables at the beginning of your component
 const [displayedWords, setDisplayedWords] = useState<string[]>([]); // Words to be displayed as subtitle
 const [isDisplaying, setIsDisplaying] = useState(false); // Flag to check if we're displaying a sentence
+    const [isListening, setIsListening] = useState(false);
+  const isListeningRef = useRef(false);
 
   
   async function fetchAccessToken() {
@@ -105,28 +107,34 @@ const [isDisplaying, setIsDisplaying] = useState(false); // Flag to check if we'
       setStream(event.detail);
       speakText(introductionText);
     });
-    avatar.current?.on(StreamingEvents.USER_START, (event) => {
+   /* avatar.current?.on(StreamingEvents.USER_START, (event) => {
+           
       console.log(">>>>> User started talking:", event);
       setIsUserTalking(true);
       setIsListening(true);
-    });
+    });*/
     avatar.current?.on(StreamingEvents.USER_TALKING_MESSAGE, (event: CustomEvent) => {
+        if (!isListening) return;
       const chunk = event.detail.message;
       console.log('User talking message:', chunk);
       setCurrentUserSpeech(prev => prev + chunk);
       userspeech += chunk;
     });
     avatar.current?.on(StreamingEvents.USER_END_MESSAGE, (event: CustomEvent) => {
+            if (!isListening) {
+        userspeech = ""; // Clear any accumulated speech
+        return;
+      }
       console.log('User end message:', userspeech);
       addTranscribedText(userspeech, 'user');
       setCurrentUserSpeech(prev => prev + userspeech + "\n");
       userspeech = "";
     });
-    avatar.current?.on(StreamingEvents.USER_STOP, (event) => {
+   /* avatar.current?.on(StreamingEvents.USER_STOP, (event) => {
       console.log(">>>>> User stopped talking:", event);
       setIsUserTalking(false);
       setIsListening(false);
-    });
+    });*/
     try {
       const res = await avatar.current.createStartAvatar({
         quality: AvatarQuality.Low,
@@ -152,8 +160,8 @@ const [isDisplaying, setIsDisplaying] = useState(false); // Flag to check if we'
 
       setData(res);
       // default to voice mode
-      await avatar.current?.startVoiceChat();
-      setChatMode("voice_mode");
+      /*await avatar.current?.startVoiceChat();
+      setChatMode("voice_mode");*/
     } catch (error) {
       console.error("Error starting avatar session:", error);
     } finally {
@@ -185,6 +193,31 @@ const [isDisplaying, setIsDisplaying] = useState(false); // Flag to check if we'
     setIsDisplaying(true);
     displayNextChunk();
   };
+
+  const handleToggleListening = useMemoizedFn(async () => {
+    if (!avatar.current) return;
+  
+    try {
+      if (isListeningRef.current) {
+        await avatar.current.stopListening();
+        await avatar.current.closeVoiceChat();
+        setChatMode("text_mode");
+      } else {
+        await avatar.current.startVoiceChat({ useSilencePrompt: false });
+        await avatar.current.startListening();
+        setChatMode("voice_mode");
+      }
+      isListeningRef.current = !isListeningRef.current;
+      setIsListening(isListeningRef.current);
+      
+      // Clear user speech when stopping
+      if (!isListeningRef.current) {
+        setCurrentUserSpeech("");
+      }
+    } catch (error) {
+      console.error("Toggle failed:", error);
+    }
+  });
   
   const handleVoiceChange = (voiceId: SetStateAction<string>) => {
     setVoiceId(voiceId);
@@ -265,13 +298,13 @@ const generalAdviceInfo = "We're committed to supporting your overall health and
 const recovery="Recovery involves pain management, prevention of blood clots, and gradual mobility within hours after surgery, with discharge typically by the next day and wound care monitored by a midwife." ;
 const sterl="Sterilization, performed during the C-section for permanent contraception, is designed to minimize additional recovery time and is supported by counseling during the hospital stay."; 
 
-useEffect(() => {
+/*useEffect(() => {
     if (!previousText && text) {
       avatar.current?.startListening();
     } else if (previousText && !text) {
       avatar?.current?.stopListening();
     }
-  }, [text, previousText]);
+  }, [text, previousText]);*/
 
   useEffect(() => {
     return () => {
@@ -394,6 +427,12 @@ useEffect(() => {
           {/* Buttons Section */}
           {stream && (
       <div className="flex justify-center items-center gap-4 w-full h-[10%] bg-blue-200 border-b-2 border-blue-300" style={{ backgroundColor: '#80D5DE'}}>
+        <Button 
+  onPress={handleToggleListening} 
+  style={{ backgroundColor: '#2CA9B5', color: 'white' }}
+>
+  {isListening ? "Stop Listening" : "Start Listening"}
+</Button>
         <Button onPress={handleInterrupt}  style={{ backgroundColor: '#2CA9B5', color: 'white' }}>
           Interrupt Avatar
         </Button>
