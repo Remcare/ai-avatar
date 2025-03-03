@@ -7,7 +7,7 @@ Feel free to play around with the existing code and please leave any feedback fo
 
 ## Getting Started FAQ 
 
-### Setting up demo........
+### Setting up demo...
 
 1. Clone this repository
 
