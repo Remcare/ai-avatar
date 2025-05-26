@@ -42,7 +42,7 @@ After you see Monica appear on the screen, you can enter text into the input lab
 
 If you want to see a different Avatar or try a different voice, you can close the session and enter the IDs and then 'start' the session again. Please see below for information on where to retrieve different Avatar and voice IDs that you can use.
 
-### Connecting to OpenAI
+### Connecting to OpenAI...
 
 A common use case for a Interactive Avatar is to use it as the 'face' of an LLM that users can interact with. In this demo we have included functionality to showcase this by both accepting user input via voice (using OpenAI's Whisper library) and also sending that input to an OpenAI LLM model (using their Chat Completions endpoint).
 
