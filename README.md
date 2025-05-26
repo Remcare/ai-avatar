@@ -1,4 +1,4 @@
-# HeyGen Interactive Avatar NextJS Demo...
+# HeyGen Interactive Avatar NextJS Demo
 
 ![HeyGen Interactive Avatar NextJS Demo Screenshot](./public/demo.png)
 
