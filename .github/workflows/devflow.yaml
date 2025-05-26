@@ -43,7 +43,7 @@ jobs:
             fi
 
             # Check the current branch and pull the latest code
-            echo "Checking current branch..."
+            echo "Checking current branch"
             CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
             echo "Current branch is: $CURRENT_BRANCH"
             if [ "$CURRENT_BRANCH" != "dev" ]; then
