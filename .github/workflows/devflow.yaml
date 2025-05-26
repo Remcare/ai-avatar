@@ -27,12 +27,12 @@ jobs:
 
       - name: Attempt SSH Connection
         run: |
-          echo "Attempting to SSH into: ${{ secrets.VM_USER }}@${{ 10.48.10.29 }}"
-          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa "${{ secrets.VM_USER }}@${{ 10.48.10.29 }}" "echo Connected Successfully!"
+          echo "Attempting to SSH into: ${{ secrets.VM_USER }}@${{ secrets.VM_HOST }}"
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa "${{ secrets.VM_USER }}@${{ secrets.VM_HOST }}" "echo Connected Successfully!"
 
       - name: Pull Latest Changes and Manage Processes
         run: |
-          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa "${{ secrets.VM_USER }}@${{ 10.48.10.29 }}" << 'EOF'
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa "${{ secrets.VM_USER }}@${{ secrets.VM_HOST }}" << 'EOF'
             # Kill existing processes listening on ports 3000 to 3009
             PIDs=$(sudo netstat -tulnp | grep -E ':300[0-9]' | awk '{print $7}' | cut -d'/' -f1)
             if [ -n "$PIDs" ]; then
